@@ -1,46 +1,49 @@
 import type { Metadata } from "next";
 import { Toaster } from "react-hot-toast";
-import "../styles/globals.css"; // مسیر globals.css خود را در صورت نیاز اصلاح کنید
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
+import "../styles/globals.css";
 
 export const metadata: Metadata = {
-  title: "فروشگاه محصولات دیجیتال | اسپاتیفای",
-  description: "خرید اشتراک پریمیوم اسپاتیفای با بهترین قیمت، تحویل آنی و پشتیبانی تلگرامی.",
+    title: "گلدیما | مدیریت آنلاین شمش نقره",
+    description: "پلتفرم هوشمند برای مدیریت و خرید و فروش آنلاین شمش نقره.",
 };
 
 export default function RootLayout({
-  children,
+    children,
 }: Readonly<{
-  children: React.ReactNode;
+    children: React.ReactNode;
 }>) {
-  return (
-    <html lang="fa" dir="rtl" className="scroll-smooth">
-      <body cz-shortcut-listen="true" className="flex flex-col min-h-screen bg-store-base text-store-text antialiased selection:bg-spotify/30 selection:text-spotify-light">
-        {/* هدر سایت */}
-        <Header />
-        
-        {/* محتوای اصلی صفحات (پایین‌تر از هدر فیکس شده قرار می‌گیرد) */}
-        <main className="grow pt-24 pb-10 px-4 sm:px-6 lg:px-8 container mx-auto max-w-7xl">
-          {children}
-        </main>
+    return (
+        <html lang="fa" dir="rtl" className="scroll-smooth">
+            <body
+                cz-shortcut-listen="true"
+                className="flex flex-col min-h-screen bg-brand-base text-brand-text-primary antialiased selection:bg-silver-dark/30"
+            >
+                {children}
 
-        {/* فوتر سایت */}
-        <Footer />
-
-        {/* سیستم نمایش نوتیفیکیشن‌ها */}
-        <Toaster 
-          position="top-center" 
-          toastOptions={{
-            style: {
-              background: '#181818', // رنگ کارت‌های اسپاتیفای
-              color: '#FFFFFF', // رنگ متن اصلی
-              border: '1px solid #2A2A2A', // رنگ بوردرهای اسپاتیفای
-              fontFamily: 'inherit'
-            },
-          }} 
-        />
-      </body>
-    </html>
-  );
+                <Toaster
+                    position="top-center"
+                    toastOptions={{
+                        style: {
+                            background: "#1F2937",
+                            color: "#F3F4F6",
+                            border: "1px solid #4B5563",
+                            fontFamily: "var(--font-vazirmatn)",
+                        },
+                        success: {
+                            iconTheme: {
+                                primary: "#22C55E",
+                                secondary: "#F3F4F6",
+                            },
+                        },
+                        error: {
+                            iconTheme: {
+                                primary: "#EF4444",
+                                secondary: "#F3F4F6",
+                            },
+                        },
+                    }}
+                />
+            </body>
+        </html>
+    );
 }

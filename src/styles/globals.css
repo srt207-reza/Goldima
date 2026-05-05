@@ -1,35 +1,28 @@
-/* 1. فراخوانی هسته اصلی Tailwind v4 */
 @import "tailwindcss";
-
-/* 2. متصل کردن فایل کانفیگ نسخه 3 به تیلویند نسخه 4 */
-/* توجه: اگر فایل globals.css در پوشه src/app است، مسیر زیر درست است */
 @config "../../tailwind.config.ts";
-
-/* 3. ایمپورت فونت ایران‌سنس */
 @import "../../public/assets/fonts/iransans/style.css";
 
 @layer base {
     :root {
-        /* تم پیش‌فرض سایت فروشگاهی (تاریک - Dark Mode) */
-        --background: #0f172a; /* معادل store-dark */
-        --foreground: #f8fafc; /* رنگ متن روشن */
-        --border: #334155;     /* معادل store-border */
-    }
+        --background: #0B1120;
+        --foreground: #F3F4F6;
+        --border: #4B5563;
 
-    /* در صورت نیاز به حالت روز (Light Mode) */
-    .light {
-        --background: #f8fafc;
-        --foreground: #0f172a;
-        --border: #e2e8f0;
+        --brand-base: #0B1120;
+        --brand-surface: #111827;
+        --brand-card: #1F2937;
+        --brand-hover: #374151;
+        --brand-border: #4B5563;
+        --brand-text-primary: #F3F4F6;
+        --brand-text-secondary: #9CA3AF;
     }
 }
 
 @layer base {
     body {
-        background-color: var(--background);
-        color: var(--foreground);
-        /* تنظیم فونت ایران‌سنس به عنوان فونت اصلی و سراسری */
-        font-family: "IRANSansX";
+        background-color: var(--brand-base);
+        color: var(--brand-text-primary);
+        font-family: "IRANSansX", sans-serif;
         direction: rtl;
     }
 
@@ -39,57 +32,28 @@
     }
 }
 
-/* ========================================= */
-/* تنظیمات اسکرول‌بار سراسری سایت            */
-/* ========================================= */
-
-/* تنظیمات اسکرول‌بار برای فایرفاکس */
 * {
     scrollbar-width: thin;
-    scrollbar-color: #475569 #1e293b; /* دستگیره: slate-600، پس‌زمینه: store.panel */
+    scrollbar-color: #4B5563 #111827;
 }
 
-/* تنظیمات اسکرول‌بار برای کروم، اج و سافاری */
 *::-webkit-scrollbar {
-    width: 8px; /* عرض اسکرول‌بار عمودی */
-    height: 8px; /* ارتفاع اسکرول‌بار افقی */
+    width: 8px;
+    height: 8px;
 }
 
-/* پس‌زمینه مسیر اسکرول‌بار */
 *::-webkit-scrollbar-track {
-    background: #1e293b; /* رنگ پنل‌های تیره */
+    background: #111827;
     border-radius: 10px;
 }
 
-/* دستگیره (Thumb) اسکرول‌بار */
 *::-webkit-scrollbar-thumb {
-    background-color: #475569; /* رنگ خاکستری ملایم برای حالت عادی */
+    background-color: #4B5563;
     border-radius: 10px;
-    border: 2px solid #1e293b; /* حاشیه همرنگ پس‌زمینه برای ایجاد افکت فاصله */
+    border: 2px solid #111827;
     transition: background-color 0.3s ease;
 }
 
-/* حالت هاور (Hover) دستگیره اسکرول‌بار */
 *::-webkit-scrollbar-thumb:hover {
-    background-color: #64748b; /* روشن‌تر شدن در حالت هاور */
-}
-
-/* ========================================= */
-/* کلاس اختصاصی برای اسکرول‌بارهای کوچک      */
-/* (مناسب برای لیست‌های داخل فرم یا پنل‌ها)   */
-/* ========================================= */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(30, 41, 59, 0.5); /* شفافیت روی رنگ پنل */
-  border-radius: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.7); 
-  border-radius: 4px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.9); /* خاکستری روشن‌تر */
+    background-color: #9CA3AF;
 }

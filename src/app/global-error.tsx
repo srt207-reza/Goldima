@@ -5,7 +5,7 @@ import { ServerCrash, RefreshCw } from "lucide-react";
 export default function GlobalError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
     return (
         <html lang="fa" dir="rtl">
-            <body className="font-vazir">
+            <body>
                 <main className="min-h-screen bg-gray-50 flex items-center justify-center">
                     <div className="container text-center px-4 max-w-xl mx-auto">
                         <div className="inline-block p-6 bg-red-100 text-red-500 rounded-3xl mb-8">

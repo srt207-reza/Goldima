@@ -6,6 +6,7 @@ const config: Config = {
         "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
         "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
     ],
+    darkMode: "class",
     theme: {
         container: {
             center: true,
@@ -16,33 +17,31 @@ const config: Config = {
         },
         extend: {
             colors: {
-                // پالت رنگی اصلی اسپاتیفای
-                spotify: {
-                    DEFAULT: "#1DB954", // سبز کلاسیک اسپاتیفای
-                    light: "#1ED760",   // سبز روشن‌تر (استفاده برای هاور دکمه‌ها و برندینگ جدید)
-                    dark: "#1AA34A",
-                    press: "#169C46",   // زمان کلیک روی دکمه‌ها
+                // پالت نقره‌ای (بر اساس متن لوگو)
+                silver: {
+                    DEFAULT: "#C0C0C0", 
+                    light: "#E2E8F0",   
+                    dark: "#94A3B8",
+                    metallic: "#A0AEC0",
                 },
-                // رنگ‌های پایه و ساختاری (کاملا منطبق بر UI اسپاتیفای)
-                store: {
-                    base: "#000000",    // پس‌زمینه اصلی (مشکی مطلق در اسپاتیفای)
-                    panel: "#121212",   // پس‌زمینه سایدبارها و بخش‌های اصلی
-                    card: "#181818",    // پس‌زمینه کارت‌های محصول/پلی‌لیست
-                    hover: "#282828",   // رنگ کارت‌ها و ردیف‌ها هنگام هاور (Hover)
-                    border: "#2A2A2A",  // خطوط جداکننده ملایم
-                    text: "#FFFFFF",    // رنگ متن اصلی
-                    muted: "#B3B3B3",   // رنگ متن فرعی (توضیحات کارت‌ها)
-                    success: "#1ED760", // پیام‌های موفقیت
-                    warning: "#FFA42B", // اخطارها
-                    danger: "#E22134",  // خطاها
+                // پالت برند (بر اساس پس‌زمینه سرمه‌ای لوگو)
+                brand: {
+                    base: "#0B1120",      // پس‌زمینه اصلی (سرمه‌ای بسیار تیره)
+                    surface: "#111827",   // پس‌زمینه دوم 
+                    card: "#1F2937",      // پس‌زمینه کارت‌ها
+                    hover: "#374151",     // رنگ هاور
+                    border: "#4B5563",    // خطوط جداکننده
+                    text: {
+                        primary: "#F3F4F6",   // متن اصلی
+                        secondary: "#9CA3AF", // متن فرعی
+                    },
                 },
-                background: "var(--background)",
-                foreground: "var(--foreground)",
-                border: "var(--border)",
+                success: "#22C55E",
+                warning: "#F59E0B",
+                danger: "#EF4444",
             },
             fontFamily: {
                 vazir: ["var(--font-vazirmatn)", "sans-serif"],
-                iransans: ["IRANSans", "sans-serif"],
             },
             keyframes: {
                 "accordion-down": {
@@ -54,8 +53,8 @@ const config: Config = {
                     to: { height: "0" },
                 },
                 "fade-in": {
-                    from: { opacity: "0" },
-                    to: { opacity: "1" },
+                    from: { opacity: "0", transform: "translateY(10px)" },
+                    to: { opacity: "1", transform: "translateY(0)" },
                 },
                 "float": {
                     "0%, 100%": { transform: "translateY(0)" },
@@ -65,25 +64,25 @@ const config: Config = {
             animation: {
                 "accordion-down": "accordion-down 0.2s ease-out",
                 "accordion-up": "accordion-up 0.2s ease-out",
-                "fade-in": "fade-in 0.3s ease-out",
+                "fade-in": "fade-in 0.5s ease-out forwards",
                 "float": "float 3s ease-in-out infinite",
             },
+            boxShadow: {
+                // تغییر سایه‌ها به نقره‌ای/آبی
+                'silver-glow': '0 0 15px rgba(192, 192, 192, 0.2)',
+                'silver-glow-strong': '0 0 25px rgba(192, 192, 192, 0.4)',
+            }
         },
     },
     plugins: [
         require("tailwindcss-animate"),
         function ({ addUtilities }: any) {
             addUtilities({
-                // مخفی کردن اسکرول‌بار
                 ".scrollbar-hide": {
                     "-ms-overflow-style": "none",
                     "scrollbar-width": "none",
                     "&::-webkit-scrollbar": { display: "none" },
                 },
-                // افکت درخشش ملایم برای متمایز کردن عناصر (آپدیت شده با رنگ اسپاتیفای)
-                ".box-glow-spotify": {
-                    boxShadow: '0 0 20px rgba(29, 185, 84, 0.15), inset 0 0 10px rgba(29, 185, 84, 0.05)',
-                }
             });
         },
     ],

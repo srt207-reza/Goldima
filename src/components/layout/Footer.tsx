@@ -1,54 +1,57 @@
-import Link from "next/link";
-import { Music, Users, Send } from "lucide-react";
-
 export default function Footer() {
-  return (
-    <footer className="border-t border-store-border bg-store-dark/50 mt-auto">
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
-          
-          {/* بخش درباره ما */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white">درباره ما</h3>
-            <p className="text-slate-400 leading-relaxed text-justify">
-              ما با ارائه بهترین سرویس‌های دیجیتال و اشتراک‌های قانونی اسپاتیفای در قالب طرح‌های شخصی و فمیلی، تجربه بی‌نظیری از دنیای موسیقی را بدون دغدغه و با بالاترین کیفیت برای شما فراهم می‌کنیم.
-            </p>
-          </div>
+    const currentYear = new Date().getFullYear();
 
-          {/* بخش لینک‌های سریع */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white">دسترسی سریع</h3>
-            <ul className="space-y-2">
-              <li>
-                <Link href="/spotify/individual" className="text-slate-400 hover:text-green-400 transition-colors flex items-center gap-2">
-                  <Music className="w-4 h-4" /> طرح شخصی اسپاتیفای
-                </Link>
-              </li>
-              <li>
-                <Link href="/spotify/family" className="text-slate-400 hover:text-green-400 transition-colors flex items-center gap-2">
-                  <Users className="w-4 h-4" /> طرح فمیلی اسپاتیفای
-                </Link>
-              </li>
-            </ul>
-          </div>
+    return (
+        <footer className="bg-[#080d17] border-t border-white/5 mt-auto relative overflow-hidden">
+            <div className="container mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-12 relative z-10">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
+                    {/* ستون اول (درباره) */}
+                    <div className="md:col-span-2">
+                        <h3 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-l from-silver-light via-silver to-silver-dark mb-4 inline-block">
+                            GOLDIMA
+                        </h3>
+                        <p className="text-sm text-brand-text-secondary leading-relaxed max-w-sm">
+                            پلتفرم هوشمند، امن و تخصصی برای مدیریت، رصد و معامله شمش‌های نقره با دسترسی مستقیم به قیمت‌های لحظه‌ای بازارهای جهانی، ترکیه و امارات.
+                        </p>
+                    </div>
 
-          {/* بخش پشتیبانی */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-bold text-white">پشتیبانی تلگرام</h3>
-            <div className="flex flex-col gap-3">
-              <a href="https://t.me/getSpotify_Support" target="_blank" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-                <Send className="w-4 h-4 text-green-400" /> ارتباط با پشتیبانی اسپاتیفای
-              </a>
+                    {/* ستون دوم (دسترسی سریع) */}
+                    <div>
+                        <h4 className="text-white font-medium mb-5 text-sm uppercase tracking-wider">دسترسی سریع</h4>
+                        <ul className="space-y-3 text-sm text-brand-text-secondary">
+                            <li><a href="#" className="hover:text-silver-light transition-colors">شمش نقره ترکیه</a></li>
+                            <li><a href="#" className="hover:text-silver-light transition-colors">شمش نقره امارات</a></li>
+                            <li><a href="#" className="hover:text-silver-light transition-colors">تاریخچه معاملات</a></li>
+                            <li><a href="#" className="hover:text-silver-light transition-colors">قوانین و مقررات</a></li>
+                        </ul>
+                    </div>
+
+                    {/* ستون سوم (تماس) */}
+                    <div>
+                        <h4 className="text-white font-medium mb-5 text-sm uppercase tracking-wider">ارتباط با ما</h4>
+                        <ul className="space-y-3 text-sm text-brand-text-secondary">
+                            <li className="flex items-center gap-2">
+                                <span className="text-silver-dark">📍</span> تهران، خیابان فردوسی
+                            </li>
+                            <li className="flex items-center gap-2" dir="ltr">
+                                <span className="text-silver-dark">📞</span> 021 - 1234 5678
+                            </li>
+                            <li className="flex items-center gap-2" dir="ltr">
+                                <span className="text-silver-dark">✉️</span> support@goldima.com
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div className="mt-12 pt-8 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-4">
+                    <p className="text-xs text-brand-text-secondary/70">
+                        © {currentYear} تمامی حقوق مادی و معنوی برای پلتفرم گلدیما محفوظ است.
+                    </p>
+                    <div className="flex gap-4 text-xs text-brand-text-secondary/70">
+                        <span>ورژن ۱.۰.۰</span>
+                    </div>
+                </div>
             </div>
-          </div>
-
-        </div>
-        
-        {/* کپی رایت */}
-        <div className="mt-8 pt-6 border-t border-store-border text-center text-slate-500 text-xs">
-          © {new Date().getFullYear()} تمامی حقوق محفوظ است. طراحی و توسعه برای ارائه بهترین خدمات دیجیتال.
-        </div>
-      </div>
-    </footer>
-  );
+        </footer>
+    );
 }

@@ -1,170 +1,154 @@
-"use client";
-
-import Link from "next/link";
-import { motion } from "framer-motion";
-import { ShieldCheck, Music, CheckCircle2, Zap, Globe, ArrowLeft, User, Users } from "lucide-react";
+import SilverBullionPrices from "@/components/dashboard/SilverBullionPrices";
+import Footer from "@/components/layout/Footer";
+import Header from "@/components/layout/Header";
 
 export default function HomePage() {
-    // اطلاعات کارت محصولات (استخراج شده از فایل PDF)
-    const products = [
-        {
-            id: "individual",
-            title: "اسپاتیفای شخصی (Individual)",
-            subtitle: "تجربه موسیقی بدون مرز و محدودیت",
-            description:
-                "اکانت قانونی اسپاتیفای با فعال‌سازی روی ایمیل شخصی شما. حفظ کامل پلی‌لیست‌ها با تحویل سریع در کمتر از ۲۴ ساعت.",
-            icon: <User className="w-12 h-12 text-green-400" />,
-            features: [
-                "فعال‌سازی روی ایمیل شخصی شما",
-                "حفظ پلی‌لیست‌ها و دیتای قبلی اکانت",
-                "امکان دانلود و پخش آفلاین موسیقی",
-                "قابل استفاده در تمامی دستگاه‌ها",
-                "تحویل سریع در کمتر از ۲۴ ساعت",
-            ],
-            color: "from-green-500 to-emerald-400",
-            bgHover: "hover:shadow-green-500/20",
-            buttonColor: "bg-green-500 hover:bg-green-400",
-            href: "/order?product=individual",
-        },
-        {
-            id: "family",
-            title: "اسپاتیفای فمیلی (Family)",
-            subtitle: "اقتصادی‌ترین انتخاب برای شما",
-            description:
-                "طرحی بسیار مقرون‌به‌صرفه در بسته‌های ۶ و ۱۲ ماهه. مناسب برای کاربرانی که در سال جاری محدودیت عضویت فمیلی (دو بار در سال) ندارند.",
-            icon: <Users className="w-12 h-12 text-emerald-400" />,
-            features: [
-                "قیمت بسیار اقتصادی و مقرون‌به‌صرفه",
-                "ارائه در پلن‌های طولانی ۶ و ۱۲ ماهه",
-                "بدون قطعی و تضمین پایداری اشتراک",
-                "پرداخت قانونی روی ریجن‌های معتبر",
-                "پشتیبانی تا آخرین روز اشتراک",
-            ],
-            color: "from-emerald-500 to-green-400",
-            bgHover: "hover:shadow-emerald-500/20",
-            buttonColor: "bg-emerald-500 hover:bg-emerald-400",
-            href: "/order?product=family",
-        },
-    ];
-
-    const containerVariants = {
-        hidden: { opacity: 0 },
-        show: {
-            opacity: 1,
-            transition: { staggerChildren: 0.2 },
-        },
-    };
-
-    const itemVariants = {
-        hidden: { opacity: 0, y: 20 },
-        show: { opacity: 1, y: 0, transition: { duration: 0.5 } },
-    };
-
     return (
-        <div className="flex flex-col items-center justify-center min-h-[calc(100vh-160px)] py-12">
-            {/* بخش Hero (معرفی) */}
-            <motion.div
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6 }}
-                className="text-center max-w-3xl mb-16"
-            >
-                <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-store-panel border border-store-border text-sm text-slate-300 mb-6">
-                    <Music className="w-4 h-4 text-green-400" />
-                    <span>تحویل سریع و پشتیبانی مطمئن</span>
-                </div>
-                <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight">
-                    دسترسی بی‌حد و مرز به <br className="hidden md:block" />
-                    <span className="text-transparent bg-clip-text bg-gradient-to-r from-green-400 via-emerald-400 to-green-500">
-                        دنیای موسیقی اسپاتیفای
-                    </span>
-                </h1>
-                <p className="text-slate-400 text-lg md:text-xl leading-relaxed">
-                    خرید مطمئن و قانونی اشتراک اسپاتیفای در طرح‌های شخصی و فمیلی. همین حالا پلن مناسب خود را انتخاب کنید
-                    و تفاوت گوش دادن به موسیقی با کیفیت پریمیوم را احساس کنید.
-                </p>
-            </motion.div>
+        <>
+            <Header />
+            <main className="grow pt-28 pb-16 px-4 sm:px-6 lg:px-8 container mx-auto max-w-7xl">
+                {/* بنر خوش‌آمدگویی (بدون تغییر) */}
+                <div className="relative overflow-hidden bg-brand-surface/40 backdrop-blur-xl border border-silver-dark/20 rounded-3xl p-8 md:p-10 mb-16 shadow-silver-glow group">
+                    {/* افکت‌های نوری پس‌زمینه با موشن */}
+                    <div className="absolute -top-24 -right-24 w-64 h-64 bg-silver-light/5 rounded-full blur-3xl transition-all duration-700 group-hover:scale-125 group-hover:-translate-y-4"></div>
+                    <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-brand-hover/40 rounded-full blur-3xl transition-all duration-700 group-hover:scale-110 group-hover:translate-x-4"></div>
 
-            {/* کارت‌های محصولات */}
-            <motion.div
-                variants={containerVariants}
-                initial="hidden"
-                animate="show"
-                className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-5xl px-4"
-            >
-                {products.map((product) => (
-                    <motion.div
-                        key={product.id}
-                        variants={itemVariants}
-                        className={`group relative bg-store-panel rounded-3xl p-8 border border-store-border transition-all duration-300 hover:-translate-y-2 hover:shadow-2xl ${product.bgHover}`}
-                    >
-                        {/* افکت پس‌زمینه درخشان */}
-                        <div
-                            className={`absolute inset-0 bg-gradient-to-br ${product.color} opacity-0 group-hover:opacity-5 rounded-3xl transition-opacity duration-300`}
-                        />
+                    {/* ذرات شناور */}
+                    <div className="absolute top-10 right-20 w-2 h-2 bg-silver-light/30 rounded-full animate-float"></div>
+                    <div
+                        className="absolute top-32 right-40 w-1.5 h-1.5 bg-silver-metallic/40 rounded-full animate-float"
+                        style={{ animationDelay: "1s" }}
+                    ></div>
+                    <div
+                        className="absolute bottom-20 left-32 w-2 h-2 bg-silver-dark/30 rounded-full animate-float"
+                        style={{ animationDelay: "2s" }}
+                    ></div>
 
-                        <div className="relative z-10">
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="p-4 rounded-2xl bg-slate-800/50 border border-slate-700/50">
-                                    {product.icon}
-                                </div>
-                            </div>
+                    {/* خط درخشان متحرک */}
+                    <div className="absolute top-0 left-0 w-full h-0.5 bg-gradient-to-l from-transparent via-silver-light/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                        <div className="absolute inset-0 bg-gradient-to-l from-transparent via-silver-light to-transparent animate-pulse"></div>
+                    </div>
 
-                            <h2 className="text-2xl font-bold text-white! mb-2">{product.title}</h2>
-                            <h3
-                                className={`text-sm font-medium text-transparent bg-clip-text bg-gradient-to-r ${product.color} mb-4`}
+                    <div className="relative z-10 flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8">
+                        {/* آیکون با موشن پیشرفته */}
+                        <div className="w-20 h-20 bg-gradient-to-br from-brand-base to-brand-card border border-silver-dark/30 rounded-2xl flex items-center justify-center shadow-lg shadow-silver/10 transform rotate-3 transition-all duration-500 group-hover:rotate-0 group-hover:scale-110 group-hover:shadow-silver-glow relative overflow-hidden">
+                            {/* افکت درخشش */}
+                            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-silver-light/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+
+                            <svg
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={1.5}
+                                stroke="currentColor"
+                                className="w-10 h-10 text-silver-metallic group-hover:text-silver-light transition-colors duration-500 relative z-10"
                             >
-                                {product.subtitle}
-                            </h3>
-
-                            <p className="text-slate-400 text-sm leading-relaxed mb-8 h-16">{product.description}</p>
-
-                            <ul className="space-y-3 mb-8">
-                                {product.features.map((feature, idx) => (
-                                    <li key={idx} className="flex items-center gap-3 text-sm text-slate-300">
-                                        <CheckCircle2
-                                            className={`w-5 h-5 flex-shrink-0 bg-clip-text bg-gradient-to-br ${product.color} rounded-full bg-slate-800`}
-                                        />
-                                        {feature}
-                                    </li>
-                                ))}
-                            </ul>
-
-                            <Link
-                                href={product.href}
-                                className={`flex items-center justify-center gap-2 w-full py-4 rounded-xl text-white font-bold transition-all duration-300 shadow-lg ${product.buttonColor}`}
-                            >
-                                ثبت سفارش
-                                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                            </Link>
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"
+                                />
+                            </svg>
                         </div>
-                    </motion.div>
-                ))}
-            </motion.div>
 
-            {/* نوار ویژگی‌های کلی */}
-            <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.8 }}
-                className="mt-20 grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-4xl text-center border-t border-store-border pt-10 px-4"
-            >
-                <div className="flex flex-col items-center gap-2">
-                    <Globe className="w-8 h-8 text-slate-400 mb-2" />
-                    <h4 className="text-white font-medium">پشتیبانی از تمامی اکانت‌ها</h4>
-                    <p className="text-xs text-slate-500">بدون محدودیت در ریجن فعلی شما</p>
+                        {/* محتوای متنی راست‌چین با تایپوگرافی بهبود یافته */}
+                        <div className="text-right flex-1">
+                            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-white mb-3 leading-tight tracking-tight">
+                                به داشبورد{" "}
+                                <span className="inline-block text-transparent bg-clip-text bg-gradient-to-l from-silver-light via-silver to-silver-dark group-hover:from-silver-dark group-hover:via-silver-light group-hover:to-silver transition-all duration-700 animate-pulse">
+                                    GOLDIMA
+                                </span>{" "}
+                                خوش آمدید
+                            </h1>
+                            <p className="text-brand-text-secondary text-base md:text-lg font-light leading-relaxed max-w-3xl">
+                                مدیریت حرفه‌ای، رصد لحظه‌ای و معاملات امن شمش‌های نقره ترکیه و امارات در یک پلتفرم
+                                یکپارچه.
+                            </p>
+
+                            {/* نوار پیشرفت یا خط تزئینی */}
+                            <div className="mt-4 h-1 w-24 bg-gradient-to-l from-silver-light to-transparent rounded-full opacity-50 group-hover:w-40 group-hover:opacity-100 transition-all duration-700"></div>
+                        </div>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center gap-2">
-                    <ShieldCheck className="w-8 h-8 text-slate-400 mb-2" />
-                    <h4 className="text-white font-medium">پرداخت امن و قانونی</h4>
-                    <p className="text-xs text-slate-500">حفظ کامل امنیت اطلاعات اکانت شما</p>
+
+                {/* کامپوننت جدید قیمت‌های زنده */}
+                <SilverBullionPrices />
+
+                {/* بخش ویژگی‌ها (بدون تغییر) */}
+                <div className="mt-20 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* ... (کارت‌های ویژگی‌ها مثل قبل باقی می‌مانند) ... */}
+                    {/* کارت اول */}
+                    <div className="bg-brand-surface/30 border border-white/5 hover:border-silver-dark/30 rounded-2xl p-8 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-silver-glow group cursor-default">
+                        <div className="w-16 h-16 mx-auto bg-brand-card rounded-2xl flex items-center justify-center mb-6 border border-white/5 group-hover:bg-brand-hover transition-colors duration-300">
+                            <svg
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={1.5}
+                                stroke="currentColor"
+                                className="w-8 h-8 text-silver-metallic"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z"
+                                />
+                            </svg>
+                        </div>
+                        <h3 className="font-semibold text-white text-lg mb-3">به‌روزرسانی در لحظه</h3>
+                        <p className="text-sm text-brand-text-secondary leading-relaxed">
+                            اتصال مستقیم به بازارهای جهانی؛ قیمت‌ها به صورت کاملاً خودکار و بدون تاخیر به‌روزرسانی
+                            می‌شوند.
+                        </p>
+                    </div>
+
+                    {/* کارت دوم */}
+                    <div className="bg-brand-surface/30 border border-white/5 hover:border-silver-dark/30 rounded-2xl p-8 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-silver-glow group cursor-default">
+                        <div className="w-16 h-16 mx-auto bg-brand-card rounded-2xl flex items-center justify-center mb-6 border border-white/5 group-hover:bg-brand-hover transition-colors duration-300">
+                            <svg
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={1.5}
+                                stroke="currentColor"
+                                className="w-8 h-8 text-silver-metallic"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z"
+                                />
+                            </svg>
+                        </div>
+                        <h3 className="font-semibold text-white text-lg mb-3">امنیت سازمانی</h3>
+                        <p className="text-sm text-brand-text-secondary leading-relaxed">
+                            رمزنگاری پیشرفته داده‌ها و استفاده از پروتکل‌های امنیتی برای محافظت از دارایی‌ها و اطلاعات
+                            شما.
+                        </p>
+                    </div>
+
+                    {/* کارت سوم */}
+                    <div className="bg-brand-surface/30 border border-white/5 hover:border-silver-dark/30 rounded-2xl p-8 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-silver-glow group cursor-default">
+                        <div className="w-16 h-16 mx-auto bg-brand-card rounded-2xl flex items-center justify-center mb-6 border border-white/5 group-hover:bg-brand-hover transition-colors duration-300">
+                            <svg
+                                fill="none"
+                                viewBox="0 0 24 24"
+                                strokeWidth={1.5}
+                                stroke="currentColor"
+                                className="w-8 h-8 text-silver-metallic"
+                            >
+                                <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M14.25 9.75v-4.5m0 4.5h4.5m-4.5 0 6-6m-3 18c-8.284 0-15-6.716-15-15V4.5A2.25 2.25 0 0 1 4.5 2.25h1.372c.516 0 .966.351 1.091.852l1.106 4.423c.11.44-.054.902-.417 1.173l-1.293.97a1.062 1.062 0 0 0-.38 1.21 12.035 12.035 0 0 0 7.143 7.143c.441.162.928-.004 1.21-.38l.97-1.293a1.125 1.125 0 0 1 1.173-.417l4.423 1.106c.5.125.852.575.852 1.091V19.5a2.25 2.25 0 0 1-2.25 2.25h-2.25Z"
+                                />
+                            </svg>
+                        </div>
+                        <h3 className="font-semibold text-white text-lg mb-3">پشتیبانی VIP</h3>
+                        <p className="text-sm text-brand-text-secondary leading-relaxed">
+                            تیم متخصص ما به صورت ۲۴ ساعته در ۷ روز هفته آماده ارائه مشاوره و رفع مشکلات احتمالی شماست.
+                        </p>
+                    </div>
                 </div>
-                <div className="flex flex-col items-center gap-2">
-                    <Zap className="w-8 h-8 text-slate-400 mb-2" />
-                    <h4 className="text-white font-medium">پشتیبانی سریع</h4>
-                    <p className="text-xs text-slate-500">پاسخگویی سریع در تلگرام برای رفع مشکلات</p>
-                </div>
-            </motion.div>
-        </div>
+            </main>
+            <Footer />
+        </>
     );
 }
