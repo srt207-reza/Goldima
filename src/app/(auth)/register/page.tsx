@@ -1,172 +1,459 @@
-// src/app/register/page.tsx
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import axios from "axios";
-import Cookies from "js-cookie";
+import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import DatePicker from "react-multi-date-picker";
+import DateObject from "react-date-object";
+import persian from "react-date-object/calendars/persian";
+import persian_fa from "react-date-object/locales/persian_fa";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useRegisterMutation } from "@/hooks/api";
+import {
+    EMAIL_REGEX,
+    ISO_DATE_REGEX,
+    MOBILE_USERNAME_REGEX,
+    PASSWORD_REGEX,
+} from "@/types/api/auth";
+import { normalizeBusinessPathSegment } from "@/lib/business-path";
 
-// آیکون لوگو با موشن
-const LogoIcon = () => (
-    <div className="relative w-20 h-20 group">
-        <div className="absolute inset-0 bg-gradient-to-br from-silver-light/30 to-silver-metallic/30 rounded-2xl blur-2xl group-hover:blur-3xl transition-all duration-700 animate-pulse"></div>
-        
-        <svg className="relative w-20 h-20 transition-transform duration-700 group-hover:-rotate-12 group-hover:scale-110" viewBox="0 0 80 80" fill="none">
-            <rect x="15" y="25" width="50" height="30" rx="3" fill="url(#registerGrad)" className="drop-shadow-2xl"/>
-            <line x1="20" y1="32" x2="60" y2="32" stroke="#fff" strokeWidth="1" opacity="0.4" className="group-hover:opacity-70 transition-opacity"/>
-            <line x1="20" y1="40" x2="60" y2="40" stroke="#fff" strokeWidth="1" opacity="0.4" className="group-hover:opacity-70 transition-opacity"/>
-            <line x1="20" y1="48" x2="60" y2="48" stroke="#fff" strokeWidth="1" opacity="0.4" className="group-hover:opacity-70 transition-opacity"/>
-            <text x="40" y="48" fontSize="24" fontWeight="bold" fill="#0B1120" textAnchor="middle" className="font-sans">G</text>
-            <circle cx="55" cy="32" r="3" fill="#fff" opacity="0.8" className="animate-ping"/>
-            
-            <defs>
-                <linearGradient id="registerGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#E2E8F0" />
-                    <stop offset="50%" stopColor="#C0C0C0" />
-                    <stop offset="100%" stopColor="#94A3B8" />
-                </linearGradient>
-            </defs>
-        </svg>
-    </div>
-);
+type Step = 1 | 2;
 
-// ذرات شناور
-const FloatingParticles = () => (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 right-10 w-2 h-2 bg-silver-light/30 rounded-full animate-float" style={{ animationDelay: '0s' }}></div>
-        <div className="absolute top-40 left-20 w-3 h-3 bg-silver-metallic/20 rounded-full animate-float" style={{ animationDelay: '2s' }}></div>
-        <div className="absolute bottom-32 right-1/4 w-2 h-2 bg-silver-light/40 rounded-full animate-float" style={{ animationDelay: '4s' }}></div>
-        <div className="absolute top-1/3 left-1/3 w-1 h-1 bg-silver-dark/30 rounded-full animate-float" style={{ animationDelay: '1s' }}></div>
-        <div className="absolute bottom-20 left-10 w-2 h-2 bg-silver-light/25 rounded-full animate-float" style={{ animationDelay: '3s' }}></div>
-    </div>
-);
+type RegisterFormState = {
+    username: string;
+    password: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    birth_date: string;
+    business_name: string;
+    address: string;
+    telephone: string;
+};
+
+const initialFormState: RegisterFormState = {
+    username: "",
+    password: "",
+    first_name: "",
+    last_name: "",
+    email: "",
+    birth_date: "",
+    business_name: "",
+    address: "",
+    telephone: "",
+};
+
+const PERSIAN_DIGIT_MAP: Record<string, string> = {
+    "۰": "0",
+    "۱": "1",
+    "۲": "2",
+    "۳": "3",
+    "۴": "4",
+    "۵": "5",
+    "۶": "6",
+    "۷": "7",
+    "۸": "8",
+    "۹": "9",
+    "٠": "0",
+    "١": "1",
+    "٢": "2",
+    "٣": "3",
+    "٤": "4",
+    "٥": "5",
+    "٦": "6",
+    "٧": "7",
+    "٨": "8",
+    "٩": "9",
+};
+
+function normalizeDigits(value: string): string {
+    return value.replace(/[۰-۹٠-٩]/g, (digit) => PERSIAN_DIGIT_MAP[digit] ?? digit);
+}
+
+function validateStepOne(formData: RegisterFormState): string | null {
+    if (!formData.first_name.trim()) return "نام الزامی است.";
+    if (!formData.last_name.trim()) return "نام خانوادگی الزامی است.";
+    if (!MOBILE_USERNAME_REGEX.test(formData.username.trim())) return "شماره موبایل معتبر نیست.";
+    if (!EMAIL_REGEX.test(formData.email.trim())) return "ایمیل معتبر نیست.";
+    if (!ISO_DATE_REGEX.test(normalizeDigits(formData.birth_date.trim()))) return "تاریخ تولد را با تقویم شمسی انتخاب کنید.";
+    if (!PASSWORD_REGEX.test(formData.password)) {
+        return "رمز عبور باید حداقل ۸ کاراکتر و شامل حروف بزرگ، کوچک، عدد و کاراکتر ویژه باشد.";
+    }
+
+    return null;
+}
+
+function validateStepTwo(formData: RegisterFormState): string | null {
+    if (!formData.business_name.trim()) return "نام کسب‌وکار الزامی است.";
+    if (!formData.address.trim()) return "آدرس الزامی است.";
+    if (!formData.telephone.trim()) return "تلفن الزامی است.";
+
+    return null;
+}
+
+function StepPill({
+    active,
+    label,
+    index,
+    onClick,
+}: {
+    active: boolean;
+    label: string;
+    index: number;
+    onClick?: () => void;
+}) {
+    const isInteractive = typeof onClick === "function";
+
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            disabled={!isInteractive}
+            className={`flex items-center gap-3 rounded-xl px-2 py-1 text-right transition-all ${
+                isInteractive ? "cursor-pointer hover:bg-white/5" : "cursor-default"
+            }`}
+        >
+            <div
+                className={`flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold transition-all ${
+                    active ? "border-silver-light bg-silver-light/10 text-silver-light" : "border-silver-dark/30 text-brand-text-secondary"
+                }`}
+            >
+                {index}
+            </div>
+            <span className={`text-xs sm:text-sm ${active ? "text-brand-text-primary" : "text-brand-text-secondary"}`}>{label}</span>
+        </button>
+    );
+}
+
+function JalaliBirthDatePicker({
+    value,
+    onChange,
+}: {
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    const pickerValue = useMemo(() => {
+        if (!value) return undefined;
+
+        const normalizedValue = normalizeDigits(value);
+
+        return new DateObject({
+            date: normalizedValue,
+            calendar: persian,
+            locale: persian_fa,
+        });
+    }, [value]);
+
+    return (
+        <div className="relative overflow-visible">
+            <DatePicker
+                calendar={persian}
+                locale={persian_fa}
+                format="YYYY-MM-DD"
+                value={pickerValue}
+                portal
+                containerClassName="w-full"
+                calendarPosition="bottom-center"
+                onChange={(date) => {
+                    if (!date) {
+                        onChange("");
+                        return;
+                    }
+
+                    onChange(normalizeDigits(date.format("YYYY-MM-DD")));
+                }}
+                render={<Input type="text" readOnly dir="ltr" placeholder="1404-01-01" className="cursor-pointer" />}
+            />
+        </div>
+    );
+}
 
 export default function RegisterPage() {
     const router = useRouter();
-    const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
-        name: "",
-        mobile: "",
-        password: "",
-    });
+    const registerMutation = useRegisterMutation();
+    const [step, setStep] = useState<Step>(1);
+    const [formData, setFormData] = useState<RegisterFormState>(initialFormState);
+    const submitLockRef = useRef(false);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
+    const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+        setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+    const handleNext = () => {
+        const error = validateStepOne(formData);
+        if (error) {
+            toast.error(error);
+            return;
+        }
+
+        setStep(2);
+    };
+
+    const handleBack = () => {
+        setStep(1);
+    };
+
+    const handleSubmit = async (e: FormEvent) => {
         e.preventDefault();
-        setLoading(true);
+
+        if (step === 1) {
+            handleNext();
+            return;
+        }
+
+        if (submitLockRef.current || registerMutation.isPending) {
+            return;
+        }
+
+        const stepOneError = validateStepOne(formData);
+        if (stepOneError) {
+            toast.error(stepOneError);
+            setStep(1);
+            return;
+        }
+
+        const stepTwoError = validateStepTwo(formData);
+        if (stepTwoError) {
+            toast.error(stepTwoError);
+            return;
+        }
+
+        submitLockRef.current = true;
 
         try {
-            const response = await axios.post(
-                `${process.env.NEXT_PUBLIC_API_URL}/auth/register`,
-                formData
-            );
+            await registerMutation.mutateAsync({
+                username: formData.username.trim(),
+                password: formData.password,
+                first_name: formData.first_name.trim(),
+                last_name: formData.last_name.trim(),
+                email: formData.email.trim(),
+                birth_date: normalizeDigits(formData.birth_date),
+                business_name: formData.business_name.trim(),
+                address: formData.address.trim(),
+                telephone: formData.telephone.trim(),
+            });
 
-            const { token, name } = response.data;
-            Cookies.set("auth_token", token, { expires: 30 });
-
-            toast.success(`ثبت‌نام موفقیت‌آمیز بود! خوش آمدی ${name}`);
-            router.push("/");
-            router.refresh();
-        } catch (error: any) {
-            const errorMsg = error.response?.data?.message || "خطایی در ثبت‌نام رخ داد";
-            toast.error(errorMsg);
+            const businessName = normalizeBusinessPathSegment(formData.business_name);
+            toast.success("ثبت‌نام با موفقیت انجام شد");
+            router.replace(`/pending?business_name=${encodeURIComponent(businessName || formData.business_name.trim())}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : "ثبت‌نام با خطا مواجه شد";
+            toast.error(message);
         } finally {
-            setLoading(false);
+            submitLockRef.current = false;
         }
     };
 
     return (
-        <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-brand-base via-brand-surface to-brand-card overflow-hidden">
-            <FloatingParticles />
-            
-            <div className="absolute top-0 right-1/4 w-96 h-96 bg-silver-light/5 rounded-full blur-3xl animate-pulse"></div>
-            <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-silver-metallic/5 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-linear-to-br from-brand-base via-brand-surface to-brand-card">
+            <div className="absolute top-0 right-1/4 h-96 w-96 rounded-full bg-silver-light/5 blur-3xl animate-pulse"></div>
+            <div
+                className="absolute bottom-0 left-1/4 h-96 w-96 rounded-full bg-silver-metallic/5 blur-3xl animate-pulse"
+                style={{ animationDelay: "1s" }}
+            ></div>
 
-            <Card className="relative w-full max-w-md p-8 bg-brand-surface/80 backdrop-blur-xl border border-silver-dark/20 shadow-2xl hover:shadow-silver-glow transition-all duration-500 hover:-translate-y-2 group">
-                <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-silver-light to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-                
-                <div className="text-center mb-8">
-                    <div className="flex justify-center mb-4">
-                        <LogoIcon />
-                    </div>
-                    
-                    <h1 className="text-4xl font-bold mb-2 tracking-wider text-right">
-                        <span className="bg-gradient-to-l from-silver-light via-silver-metallic to-silver-light bg-clip-text text-transparent animate-pulse">
+            <Card className="relative w-full max-w-3xl overflow-hidden border border-silver-dark/20 bg-brand-surface/80 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-silver-glow sm:p-8">
+                <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-transparent via-silver-light to-transparent opacity-0 transition-opacity duration-700 hover:opacity-100"></div>
+
+                <div className="mb-8 text-center">
+                    <h1 className="mb-2 text-3xl font-bold tracking-wider text-center sm:text-4xl">
+                        <span className="bg-linear-to-l from-silver-light via-silver-metallic to-silver-light bg-clip-text text-transparent animate-pulse">
                             GOLDIMA
                         </span>
                     </h1>
-                    <p className="text-brand-text-secondary text-right leading-relaxed">ثبت‌نام و ایجاد حساب کاربری جدید</p>
+                    <p className="text-center leading-relaxed text-brand-text-secondary">ثبت‌نام و ایجاد حساب کاربری جدید</p>
+                </div>
+
+                <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-silver-dark/20 bg-brand-base/40 px-4 py-3">
+                    <StepPill active={step === 1} label="اطلاعات فردی" index={1} onClick={step === 2 ? () => setStep(1) : undefined} />
+                    <div className="h-px flex-1 bg-linear-to-l from-silver-dark/40 to-transparent" />
+                    <StepPill active={step === 2} label="اطلاعات سازمانی" index={2} />
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
-                    <div className="group/input">
-                        <Label htmlFor="name" className="text-brand-text-primary text-right block mb-2">نام و نام خانوادگی</Label>
-                        <Input
-                            id="name"
-                            name="name"
-                            type="text"
-                            required
-                            value={formData.name}
-                            onChange={handleChange}
-                            placeholder="مثال: علی رضایی"
-                            className="transition-all duration-300 focus:scale-[1.02] text-right"
-                        />
-                    </div>
+                    {step === 1 ? (
+                        <>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="group/input">
+                                    <Label htmlFor="first_name" className="mb-2 block text-right text-brand-text-primary">
+                                        نام
+                                    </Label>
+                                    <Input
+                                        id="first_name"
+                                        name="first_name"
+                                        type="text"
+                                        required
+                                        value={formData.first_name}
+                                        onChange={handleChange}
+                                        placeholder="علی"
+                                        className="text-right transition-all duration-300 focus:scale-[1.02]"
+                                    />
+                                </div>
 
-                    <div className="group/input">
-                        <Label htmlFor="mobile" className="text-brand-text-primary text-right block mb-2">شماره موبایل</Label>
-                        <Input
-                            id="mobile"
-                            name="mobile"
-                            type="tel"
-                            required
-                            value={formData.mobile}
-                            onChange={handleChange}
-                            placeholder="09123456789"
-                            dir="ltr"
-                            className="transition-all duration-300 focus:scale-[1.02]"
-                        />
-                    </div>
+                                <div className="group/input">
+                                    <Label htmlFor="last_name" className="mb-2 block text-right text-brand-text-primary">
+                                        نام خانوادگی
+                                    </Label>
+                                    <Input
+                                        id="last_name"
+                                        name="last_name"
+                                        type="text"
+                                        required
+                                        value={formData.last_name}
+                                        onChange={handleChange}
+                                        placeholder="رضایی"
+                                        className="text-right transition-all duration-300 focus:scale-[1.02]"
+                                    />
+                                </div>
+                            </div>
 
-                    <div className="group/input">
-                        <Label htmlFor="password" className="text-brand-text-primary text-right block mb-2">رمز عبور</Label>
-                        <Input
-                            id="password"
-                            name="password"
-                            type="password"
-                            required
-                            value={formData.password}
-                            onChange={handleChange}
-                            placeholder="••••••••"
-                            dir="ltr"
-                            className="transition-all duration-300 focus:scale-[1.02]"
-                        />
-                    </div>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="group/input">
+                                    <Label htmlFor="username" className="mb-2 block text-right text-brand-text-primary">
+                                        شماره موبایل
+                                    </Label>
+                                    <Input
+                                        id="username"
+                                        name="username"
+                                        type="tel"
+                                        inputMode="numeric"
+                                        required
+                                        value={formData.username}
+                                        onChange={handleChange}
+                                        placeholder="09123456789"
+                                        dir="ltr"
+                                        className="transition-all duration-300 focus:scale-[1.02]"
+                                    />
+                                </div>
 
-                    <Button 
-                        type="submit" 
-                        className="w-full !mt-8 relative overflow-hidden group/btn" 
-                        disabled={loading}
-                    >
-                        <span className="relative z-10">{loading ? "در حال ثبت‌نام..." : "ثبت‌نام"}</span>
-                        <div className="absolute inset-0 bg-gradient-to-r from-silver-light/0 via-silver-light/20 to-silver-light/0 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
-                    </Button>
+                                <div className="group/input">
+                                    <Label htmlFor="birth_date" className="mb-2 block text-right text-brand-text-primary">
+                                        تاریخ تولد
+                                    </Label>
+                                    <JalaliBirthDatePicker value={formData.birth_date} onChange={(birth_date) => setFormData((prev) => ({ ...prev, birth_date }))} />
+                                    {/* <p className="mt-2 text-xs text-brand-text-secondary">
+                                        تاریخ را با تقویم شمسی انتخاب کنید.
+                                    </p> */}
+                                </div>
+                            </div>
+
+                            <div className="group/input">
+                                <Label htmlFor="email" className="mb-2 block text-right text-brand-text-primary">
+                                    ایمیل
+                                </Label>
+                                <Input
+                                    id="email"
+                                    name="email"
+                                    type="email"
+                                    required
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    placeholder="name@example.com"
+                                    dir="ltr"
+                                    className="transition-all duration-300 focus:scale-[1.02]"
+                                />
+                            </div>
+
+                            <div className="group/input">
+                                <Label htmlFor="password" className="mb-2 block text-right text-brand-text-primary">
+                                    رمز عبور
+                                </Label>
+                                <Input
+                                    id="password"
+                                    name="password"
+                                    type="password"
+                                    required
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    placeholder="••••••••"
+                                    dir="ltr"
+                                    className="transition-all duration-300 focus:scale-[1.02]"
+                                />
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="group/input">
+                                <Label htmlFor="business_name" className="mb-2 block text-right text-brand-text-primary">
+                                    نام کسب‌وکار
+                                </Label>
+                                <Input
+                                    id="business_name"
+                                    name="business_name"
+                                    type="text"
+                                    required
+                                    value={formData.business_name}
+                                    onChange={handleChange}
+                                    placeholder="dornica"
+                                    className="text-right transition-all duration-300 focus:scale-[1.02]"
+                                />
+                            </div>
+
+                            <div className="group/input">
+                                <Label htmlFor="address" className="mb-2 block text-right text-brand-text-primary">
+                                    آدرس
+                                </Label>
+                                <Input
+                                    id="address"
+                                    name="address"
+                                    type="text"
+                                    required
+                                    value={formData.address}
+                                    onChange={handleChange}
+                                    placeholder="تهران، ..."
+                                    className="text-right transition-all duration-300 focus:scale-[1.02]"
+                                />
+                            </div>
+
+                            <div className="group/input">
+                                <Label htmlFor="telephone" className="mb-2 block text-right text-brand-text-primary">
+                                    تلفن
+                                </Label>
+                                <Input
+                                    id="telephone"
+                                    name="telephone"
+                                    type="tel"
+                                    required
+                                    value={formData.telephone}
+                                    onChange={handleChange}
+                                    placeholder="02112345678"
+                                    dir="ltr"
+                                    className="transition-all duration-300 focus:scale-[1.02]"
+                                />
+                            </div>
+
+                            <div className="rounded-2xl border border-silver-dark/20 bg-brand-base/35 px-4 py-3 text-sm leading-7 text-brand-text-secondary">
+                                پس از ثبت اطلاعات و تایید مرجع لینک اختصاصی شما فعال می‌شود و داشبورد زیرمجموعه‌تان در دسترس قرار می‌گیرد.
+                            </div>
+                        </>
+                    )}
+
+                    <div className={step === 2 ? "grid grid-cols-1 gap-3 mt-8! sm:grid-cols-2" : "mt-8!"}>
+                        {step === 2 ? (
+                            <Button type="button" variant="ghost" onClick={handleBack} className="w-full cursor-pointer">
+                                بازگشت
+                            </Button>
+                        ) : null}
+
+                        <Button type="submit" className="w-full cursor-pointer relative overflow-hidden group/btn text-white" disabled={registerMutation.isPending || submitLockRef.current}>
+                            <span className="relative z-10">
+                                {registerMutation.isPending ? "در حال ثبت‌نام..." : step === 1 ? "مرحله بعد" : "ثبت‌نام"}
+                            </span>
+                            <div className="absolute inset-0 translate-x-[-100%] bg-linear-to-r from-silver-light/0 via-silver-light/20 to-silver-light/0 transition-transform duration-1000 group-hover/btn:translate-x-[100%]"></div>
+                        </Button>
+                    </div>
                 </form>
 
                 <div className="mt-6 text-center text-sm text-brand-text-secondary">
                     <p className="text-right leading-relaxed">
                         قبلاً ثبت‌نام کرده‌اید؟{" "}
-                        <a href="/login" className="text-silver-light hover:text-white transition-colors font-semibold">
+                        <Link href="/login" className="font-semibold text-white transition-colors hover:text-silver-light">
                             ورود به حساب
-                        </a>
+                        </Link>
                     </p>
                 </div>
             </Card>

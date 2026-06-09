@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import { Toaster } from "react-hot-toast";
+import AppProviders from "@/components/providers/AppProviders";
+import AppShell from "@/components/layout/AppShell";
 import "../styles/globals.css";
 
 export const metadata: Metadata = {
@@ -10,7 +13,7 @@ export const metadata: Metadata = {
 export default function RootLayout({
     children,
 }: Readonly<{
-    children: React.ReactNode;
+    children: ReactNode;
 }>) {
     return (
         <html lang="fa" dir="rtl" className="scroll-smooth">
@@ -18,7 +21,7 @@ export default function RootLayout({
                 cz-shortcut-listen="true"
                 className="flex flex-col min-h-screen bg-brand-base text-brand-text-primary antialiased selection:bg-silver-dark/30"
             >
-                {children}
+                <AppProviders><AppShell>{children}</AppShell></AppProviders>
 
                 <Toaster
                     position="top-center"

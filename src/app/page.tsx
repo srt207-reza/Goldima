@@ -1,12 +1,10 @@
 import SilverBullionPrices from "@/components/dashboard/SilverBullionPrices";
 import Footer from "@/components/layout/Footer";
-import Header from "@/components/layout/Header";
 
 export default function HomePage() {
     return (
         <>
-            <Header />
-            <main className="grow pt-28 pb-16 px-4 sm:px-6 lg:px-8 container mx-auto max-w-7xl">
+            <main className="grow pt-8 pb-16 px-4 sm:px-6 lg:px-8 container mx-auto max-w-7xl">
                 {/* بنر خوش‌آمدگویی (بدون تغییر) */}
                 <div className="relative overflow-hidden bg-brand-surface/40 backdrop-blur-xl border border-silver-dark/20 rounded-3xl p-8 md:p-10 mb-16 shadow-silver-glow group">
                     {/* افکت‌های نوری پس‌زمینه با موشن */}
