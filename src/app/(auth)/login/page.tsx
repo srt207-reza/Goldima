@@ -10,7 +10,6 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useLoginMutation } from "@/hooks/api";
-import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import { setAuthTokens } from "@/lib/auth-storage";
 import { getCurrentUser } from "@/services/api/user";
 import LOGO from "@/../public/assets/images/logo.png";
@@ -74,12 +73,11 @@ export default function LoginPage() {
             setAuthTokens(response);
 
             const currentUser = await getCurrentUser();
-            const businessName = normalizeBusinessPathSegment(currentUser.business_name);
 
             toast.success("ورود موفقیت‌آمیز بود");
 
-            if (currentUser.status === "APPROVED" && businessName) {
-                router.replace(`/${businessName}`);
+            if (String(currentUser.role ?? "").toUpperCase() === "MASTER" || currentUser.status === "APPROVED") {
+                router.replace("/");
                 return;
             }
 

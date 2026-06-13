@@ -97,6 +97,10 @@ function validateRegisterPayload(payload: RegisterRequest): void {
     validateEmail(payload.email);
     validateIsoDate(payload.birth_date);
     assertRequired(payload.business_name, "نام کسب‌وکار");
+    assertRequired(payload.business_handler, "شناسه لینک اختصاصی");
+    if (!/^[-a-zA-Z0-9_]+$/.test(payload.business_handler.trim())) {
+        throw new Error("شناسه لینک اختصاصی فقط می‌تواند شامل حروف انگلیسی، عدد، خط تیره و آندرلاین باشد.");
+    }
     assertRequired(payload.address, "آدرس");
     validateTelephone(payload.telephone);
 }
@@ -151,7 +155,12 @@ export async function loginUser(payload: LoginRequest): Promise<LoginResponse> {
 export async function registerUser(payload: RegisterRequest): Promise<RegisterResponse> {
     validateRegisterPayload(payload);
 
-    const { data } = await axiosInstance.post<unknown>("/api/register/", payload);
+    const { parent_business_handler, ...requestPayload } = payload;
+    const registerEndpoint = parent_business_handler
+        ? `/api/${encodeURIComponent(parent_business_handler)}/register/`
+        : "/api/register/";
+
+    const { data } = await axiosInstance.post<unknown>(registerEndpoint, requestPayload);
     return data;
 }
 

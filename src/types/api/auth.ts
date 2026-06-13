@@ -27,8 +27,11 @@ export type RegisterRequest = {
     email: string;
     birth_date: string;
     business_name: string;
+    business_handler: string;
     address: string;
     telephone: string;
+    business_logo?: string;
+    parent_business_handler?: string;
 };
 
 export type RegisterResponse = unknown;

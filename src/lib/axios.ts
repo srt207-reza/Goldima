@@ -29,7 +29,7 @@ type RetriableConfig = InternalAxiosRequestConfig & {
     _retry?: boolean;
 };
 
-const AUTH_PATHS = ["/api/login/", "/api/register/", "/api/logout/", "/api/token/refresh/"];
+const AUTH_PATHS = ["/api/login/", "/api/register/", "/register/", "/api/logout/", "/api/token/refresh/"];
 
 axiosInstance.interceptors.request.use(
     (config) => {

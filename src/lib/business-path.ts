@@ -7,7 +7,7 @@ export function normalizeBusinessPathSegment(value: string | undefined | null): 
 
     const slug = raw
         .replace(/\s+/g, "-")
-        .replace(/[^\p{L}\p{N}-]+/gu, "")
+        .replace(/[^\p{L}\p{N}_-]+/gu, "")
         .replace(/-+/g, "-")
         .replace(/^-+|-+$/g, "");
 
@@ -15,7 +15,7 @@ export function normalizeBusinessPathSegment(value: string | undefined | null): 
 }
 
 export function buildBusinessUrl(value: string | undefined | null): string {
-    const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://goldima.liara.run").replace(/\/$/, "");
+    const baseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "https://goldima.liara.run").replace(/\/$/, "");
     const segment = normalizeBusinessPathSegment(value);
     return segment ? `${baseUrl}/${segment}` : baseUrl;
 }

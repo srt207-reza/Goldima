@@ -23,6 +23,7 @@ import toast from "react-hot-toast";
 import { useCurrentUserQuery, useLogoutMutation } from "@/hooks/api";
 import { clearAuthTokens, getRefreshToken } from "@/lib/auth-storage";
 import { canViewReferenceTools, getBusinessLabel, getDisplayName, getNormalizedUserRole } from "@/lib/user-role";
+import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import LOGO from "@/../public/assets/images/logo.png";
 
 type NavItem = {
@@ -31,13 +32,43 @@ type NavItem = {
     icon: typeof LayoutDashboard;
 };
 
+const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "stores", "pricing"]);
+
 function isAuthRoute(pathname: string): boolean {
     return ["/login", "/register", "/pending"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+}
+
+function isBusinessRegistrationRoute(pathname: string): boolean {
+    const segments = pathname.split("/").filter(Boolean);
+    return segments.length === 1 && !APP_SINGLE_SEGMENT_ROUTES.has(segments[0]) && pathname !== "/";
+}
+
+function isShellHidden(pathname: string): boolean {
+    return isAuthRoute(pathname) || isBusinessRegistrationRoute(pathname);
 }
 
 function isActivePath(pathname: string, href: string): boolean {
     if (href === "/") return pathname === "/";
     return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function getRoleLabel(role: ReturnType<typeof getNormalizedUserRole>): string {
+    if (role === "reference") return "مرجع";
+    if (role === "wholesale") return "عمده‌فروش";
+    if (role === "retail") return "تک‌فروش";
+    return "حساب کاربری";
+}
+
+function LoadingGate() {
+    return (
+        <div className="grid min-h-screen place-items-center bg-brand-base px-4 text-right">
+            <div className="w-full max-w-md rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-8 shadow-2xl backdrop-blur-xl">
+                <div className="mb-4 h-6 w-40 animate-pulse rounded bg-white/10" />
+                <div className="mb-2 h-4 w-full animate-pulse rounded bg-white/10" />
+                <div className="h-4 w-2/3 animate-pulse rounded bg-white/10" />
+            </div>
+        </div>
+    );
 }
 
 function NavLink({
@@ -77,24 +108,26 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const logoutMutation = useLogoutMutation();
-    const { data: currentUser } = useCurrentUserQuery();
+    const { data: currentUser, isLoading: isLoadingCurrentUser, isError: isCurrentUserError } = useCurrentUserQuery();
 
     const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
-    const hideShell = isAuthRoute(pathname ?? "");
-    const hasSession = Boolean(currentUser);
+    const currentPathname = pathname ?? "/";
+    const hideShell = isShellHidden(currentPathname);
     const role = useMemo(() => getNormalizedUserRole(currentUser), [currentUser]);
+    const roleLabel = useMemo(() => getRoleLabel(role), [role]);
     const displayName = useMemo(() => getDisplayName(currentUser), [currentUser]);
     const businessLabel = useMemo(() => getBusinessLabel(currentUser), [currentUser]);
     const showReferenceTools = useMemo(() => canViewReferenceTools(currentUser), [currentUser]);
+    const isAllowedDashboardUser = Boolean(currentUser && (role === "reference" || currentUser.status === "APPROVED"));
 
     const navItems: NavItem[] = [{ href: "/", label: "داشبورد", icon: LayoutDashboard }];
 
     if (showReferenceTools) {
         navItems.push(
-            { href: "/stores", label: "لیست فروشگاه‌ها", icon: Store },
+            { href: "/stores", label: "لیست کاربران", icon: Store },
             { href: "/pricing", label: "قیمت‌گذاری‌ها", icon: Tags },
         );
     }
@@ -102,7 +135,22 @@ export default function AppShell({ children }: { children: ReactNode }) {
     useEffect(() => {
         setProfileMenuOpen(false);
         setMobileMenuOpen(false);
-    }, [pathname]);
+    }, [currentPathname]);
+
+    useEffect(() => {
+        if (hideShell || isLoadingCurrentUser) return;
+
+        if (isCurrentUserError || !currentUser) {
+            clearAuthTokens();
+            router.replace("/login");
+            return;
+        }
+
+        if (!isAllowedDashboardUser) {
+            const businessName = normalizeBusinessPathSegment(currentUser.business_name ?? currentUser.username ?? "");
+            router.replace(`/pending${businessName ? `?business_name=${encodeURIComponent(businessName)}` : ""}`);
+        }
+    }, [currentUser, hideShell, isAllowedDashboardUser, isCurrentUserError, isLoadingCurrentUser, router]);
 
     const handleLogout = async () => {
         const refresh = getRefreshToken();
@@ -125,6 +173,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
     if (hideShell) {
         return <>{children}</>;
+    }
+
+    if (isLoadingCurrentUser || !currentUser || !isAllowedDashboardUser) {
+        return <LoadingGate />;
     }
 
     const sidebarWidth = sidebarCollapsed ? "lg:w-20" : "lg:w-72";
@@ -186,12 +238,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
                                 {!sidebarCollapsed && (
                                     <div>
-                                        <p className="text-sm font-semibold text-brand-text-primary">
-                                            {hasSession ? businessLabel : "کاربر مهمان"}
-                                        </p>
-                                        <p className="mt-1 text-xs text-brand-text-secondary">
-                                            {hasSession ? "دسترسی شما بر اساس نقش فعال می‌شود" : "برای دسترسی کامل وارد شوید"}
-                                        </p>
+                                        <p className="text-sm font-semibold text-brand-text-primary">{businessLabel}</p>
+                                        <p className="mt-1 text-xs text-brand-text-secondary">نقش فعال: {roleLabel}</p>
                                     </div>
                                 )}
                             </div>
@@ -202,7 +250,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                 <NavLink
                                     key={item.href}
                                     {...item}
-                                    pathname={pathname}
+                                    pathname={currentPathname}
                                     collapsed={sidebarCollapsed}
                                     onClick={() => setMobileMenuOpen(false)}
                                 />
@@ -210,7 +258,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
                             {!showReferenceTools ? (
                                 <div className="mt-2 rounded-3xl border border-dashed border-silver-dark/20 bg-brand-base/35 p-4 text-sm leading-7 text-brand-text-secondary">
-                                    {!sidebarCollapsed && (hasSession ? "رول فعلی شما فقط به داشبورد دسترسی دارد." : "کاربر مهمان فقط داشبورد عمومی را مشاهده می‌کند.")}
+                                    {!sidebarCollapsed && "با نقش فعلی فقط به بخش‌های مجاز حساب خود دسترسی دارید."}
                                 </div>
                             ) : (
                                 <div className="mt-2 rounded-3xl border border-silver-dark/20 bg-brand-base/35 p-4">
@@ -224,7 +272,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                                 مرجع
                                             </div>
                                             <p className="mt-2 text-xs leading-6 text-brand-text-secondary">
-                                                لیست فروشگاه‌ها و قیمت‌گذاری‌ها فقط برای این نقش نمایش داده می‌شود.
+                                                لیست کاربران و قیمت‌گذاری‌ها فقط برای نقش مرجع نمایش داده می‌شود.
                                             </p>
                                         </>
                                     )}
@@ -278,89 +326,61 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
                         <div className="min-w-0">
                             <div className="truncate text-base font-bold text-white">داشبورد مدیریت</div>
-                            <div className="truncate text-xs text-brand-text-secondary">{hasSession ? businessLabel : "GOLDIMA"}</div>
+                            <div className="truncate text-xs text-brand-text-secondary">{businessLabel}</div>
                         </div>
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* <button
-                            type="button"
-                            onClick={() => setSidebarCollapsed((value) => !value)}
-                            className="hidden h-11 cursor-pointer w-11 items-center justify-center rounded-xl border border-silver-dark/20 bg-brand-base/50 text-brand-text-primary transition-all hover:bg-white/5 lg:inline-flex"
-                            aria-label={sidebarCollapsed ? "باز کردن سایدبار" : "جمع کردن سایدبار"}
-                        >
-                            {sidebarCollapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-                        </button> */}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setProfileMenuOpen((value) => !value)}
+                                className="inline-flex items-center gap-3 rounded-2xl border border-silver-dark/20 bg-brand-base/50 px-4 py-2.5 text-right transition-all hover:border-silver-light/20 hover:bg-white/5"
+                            >
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-silver-dark/20 bg-silver-light/10 text-sm font-semibold text-silver-light">
+                                    {displayName.slice(0, 1).toUpperCase()}
+                                </div>
 
-                        {hasSession ? (
-                            <div className="relative">
-                                <button
-                                    type="button"
-                                    onClick={() => setProfileMenuOpen((value) => !value)}
-                                    className="inline-flex items-center gap-3 rounded-2xl border border-silver-dark/20 bg-brand-base/50 px-4 py-2.5 text-right transition-all hover:border-silver-light/20 hover:bg-white/5"
-                                >
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-silver-dark/20 bg-silver-light/10 text-sm font-semibold text-silver-light">
-                                        {displayName.slice(0, 1).toUpperCase()}
+                                <div className="hidden flex-col items-start sm:flex">
+                                    <span className="text-sm font-semibold text-brand-text-primary">{businessLabel}</span>
+                                    <span className="text-[11px] text-brand-text-secondary">{roleLabel}</span>
+                                </div>
+
+                                <ChevronDown
+                                    className={`h-4 w-4 text-brand-text-secondary transition-transform ${
+                                        profileMenuOpen ? "rotate-180" : ""
+                                    }`}
+                                />
+                            </button>
+
+                            {profileMenuOpen ? (
+                                <div className="absolute left-0 mt-3 w-64 overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-surface/95 shadow-2xl backdrop-blur-xl">
+                                    <div className="border-b border-white/5 px-4 py-4">
+                                        <p className="text-sm font-semibold text-brand-text-primary">{displayName}</p>
+                                        <p className="mt-1 text-xs text-brand-text-secondary">{businessLabel}</p>
                                     </div>
 
-                                    <div className="hidden flex-col items-start sm:flex">
-                                        <span className="text-sm font-semibold text-brand-text-primary">{businessLabel}</span>
-                                        <span className="text-[11px] text-brand-text-secondary">
-                                            {role === "reference" ? "مرجع" : "حساب کاربری"}
-                                        </span>
+                                    <div className="p-2">
+                                        <Link
+                                            href="/profile"
+                                            className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5"
+                                        >
+                                            <UserCircle2 className="h-4 w-4 text-silver-light" />
+                                            پروفایل
+                                        </Link>
+                                        <button
+                                            type="button"
+                                            onClick={handleLogout}
+                                            disabled={logoutMutation.isPending}
+                                            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5 disabled:opacity-60"
+                                        >
+                                            <LogOut className="h-4 w-4 text-silver-light" />
+                                            خروج از حساب
+                                        </button>
                                     </div>
-
-                                    <ChevronDown
-                                        className={`h-4 w-4 text-brand-text-secondary transition-transform ${
-                                            profileMenuOpen ? "rotate-180" : ""
-                                        }`}
-                                    />
-                                </button>
-
-                                {profileMenuOpen ? (
-                                    <div className="absolute left-0 mt-3 w-64 overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-surface/95 shadow-2xl backdrop-blur-xl">
-                                        <div className="border-b border-white/5 px-4 py-4">
-                                            <p className="text-sm font-semibold text-brand-text-primary">{displayName}</p>
-                                            <p className="mt-1 text-xs text-brand-text-secondary">{businessLabel}</p>
-                                        </div>
-
-                                        <div className="p-2">
-                                            <Link
-                                                href="/"
-                                                className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5"
-                                            >
-                                                <UserCircle2 className="h-4 w-4 text-silver-light" />
-                                                پروفایل
-                                            </Link>
-                                            <button
-                                                type="button"
-                                                onClick={handleLogout}
-                                                disabled={logoutMutation.isPending}
-                                                className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5 disabled:opacity-60"
-                                            >
-                                                <LogOut className="h-4 w-4 text-silver-light" />
-                                                خروج از حساب
-                                            </button>
-                                        </div>
-                                    </div>
-                                ) : null}
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2">
-                                <Link
-                                    href="/register"
-                                    className="inline-flex h-11 items-center justify-center rounded-xl bg-gold px-4 text-sm font-semibold text-white shadow-gold-glow transition-all hover:bg-gold-light"
-                                >
-                                    ثبت‌نام
-                                </Link>
-                                <Link
-                                    href="/login"
-                                    className="inline-flex h-11 items-center justify-center rounded-xl border border-silver-dark/20 px-4 text-sm font-medium text-brand-text-primary transition-all hover:bg-white/5"
-                                >
-                                    ورود
-                                </Link>
-                            </div>
-                        )}
+                                </div>
+                            ) : null}
+                        </div>
                     </div>
                 </div>
             </header>

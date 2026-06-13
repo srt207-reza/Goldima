@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { Card } from "@/components/ui/card";
-import { useCurrentUserQuery } from "@/hooks/api";
-import { canViewReferenceTools } from "@/lib/user-role";
+import { useCurrentUserQuery, useUsersQuery } from "@/hooks/api";
+import { canViewReferenceTools, getNormalizedUserRole } from "@/lib/user-role";
+import type { ApiUser } from "@/types/api/user";
 
 function LoadingState() {
     return (
@@ -42,14 +43,26 @@ function DeniedState() {
 }
 
 export default function StoresPage() {
-    const { data: currentUser, isLoading } = useCurrentUserQuery();
+    const { data: currentUser, isLoading: isLoadingUser } = useCurrentUserQuery();
+    // Fetch all users when viewing the stores page. The query does not
+    // specify any status filter so the backend returns the full hierarchy.
+    const { data: usersData, isLoading: isLoadingUsers, isError: isUsersError } = useUsersQuery();
 
-    if (isLoading) {
+    if (isLoadingUser || isLoadingUsers) {
         return <LoadingState />;
     }
 
     if (!canViewReferenceTools(currentUser)) {
         return <DeniedState />;
+    }
+
+    // Determine the array of user records regardless of whether the
+    // backend returned an array or a paginated object with `results`.
+    let users: ApiUser[] = [];
+    if (Array.isArray(usersData)) {
+        users = usersData as ApiUser[];
+    } else if (usersData && typeof usersData === "object" && Array.isArray((usersData as any).results)) {
+        users = (usersData as any).results as ApiUser[];
     }
 
     return (
@@ -59,25 +72,47 @@ export default function StoresPage() {
                     <div className="inline-flex rounded-full border border-silver-light/20 bg-silver-light/10 px-4 py-2 text-sm text-silver-light">
                         بخش مرجع
                     </div>
-                    <h1 className="mt-5 text-3xl font-bold text-brand-text-primary">لیست فروشگاه‌ها</h1>
+                    <h1 className="mt-5 text-3xl font-bold text-brand-text-primary">لیست کاربران</h1>
                     <p className="mt-4 max-w-3xl leading-8 text-brand-text-secondary">
-                        این صفحه برای مدیریت و مشاهده فروشگاه‌های وابسته به مرجع در نظر گرفته شده است. داده‌ها در ادامه می‌تواند از API واقعی لود شود.
+                        این صفحه کاربران ثبت شده (عمده فروش و تک فروش) را نمایش می‌دهد. ادمین می‌تواند وضعیت آن‌ها را تغییر دهد و جزئیات هر کاربر را مشاهده کند.
                     </p>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {[
-                        { title: "فروشگاه نقره آریا", status: "فعال", city: "تهران" },
-                        { title: "فروشگاه نقره مهر", status: "در انتظار", city: "اصفهان" },
-                        { title: "فروشگاه نقره پارسیان", status: "فعال", city: "شیراز" },
-                    ].map((store) => (
-                        <Card key={store.title} className="border border-silver-dark/20 bg-brand-surface/70 p-5 text-right backdrop-blur-xl">
-                            <p className="text-lg font-semibold text-brand-text-primary">{store.title}</p>
-                            <p className="mt-2 text-sm text-brand-text-secondary">شهر: {store.city}</p>
-                            <p className="mt-1 text-sm text-brand-text-secondary">وضعیت: {store.status}</p>
-                        </Card>
-                    ))}
-                </div>
+                {isUsersError ? (
+                    <Card className="border border-silver-dark/20 bg-brand-surface/70 p-5 text-center backdrop-blur-xl text-red-200">
+                        خطا در بارگیری کاربران
+                    </Card>
+                ) : (
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                        {users.map((user) => {
+                            const displayName = user.business_name || `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() || user.username;
+                            const role = getNormalizedUserRole(user);
+                            return (
+                                <Card
+                                    key={String(user.id)}
+                                    className="border border-silver-dark/20 bg-brand-surface/70 p-5 text-right backdrop-blur-xl flex flex-col justify-between"
+                                >
+                                    <div>
+                                        <p className="text-lg font-semibold text-brand-text-primary break-words">
+                                            {displayName || "—"}
+                                        </p>
+                                        <p className="mt-1 text-sm text-brand-text-secondary">کد کاربر: {String(user.id)}</p>
+                                        <p className="mt-1 text-sm text-brand-text-secondary">وضعیت: {user.status ?? "—"}</p>
+                                        <p className="mt-1 text-sm text-brand-text-secondary">نقش: {role}</p>
+                                    </div>
+                                    <div className="mt-4">
+                                        <Link
+                                            href={`/stores/${user.id}`}
+                                            className="inline-flex items-center justify-center rounded-lg bg-gold px-4 py-2 text-sm font-medium text-brand-base transition-all hover:bg-gold-light"
+                                        >
+                                            مشاهده جزئیات
+                                        </Link>
+                                    </div>
+                                </Card>
+                            );
+                        })}
+                    </div>
+                )}
             </div>
         </div>
     );

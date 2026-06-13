@@ -31,8 +31,10 @@ type RegisterFormState = {
     email: string;
     birth_date: string;
     business_name: string;
+    business_handler: string;
     address: string;
     telephone: string;
+    business_logo: string;
 };
 
 const initialFormState: RegisterFormState = {
@@ -43,8 +45,10 @@ const initialFormState: RegisterFormState = {
     email: "",
     birth_date: "",
     business_name: "",
+    business_handler: "",
     address: "",
     telephone: "",
+    business_logo: "",
 };
 
 const PERSIAN_DIGIT_MAP: Record<string, string> = {
@@ -89,6 +93,10 @@ function validateStepOne(formData: RegisterFormState): string | null {
 
 function validateStepTwo(formData: RegisterFormState): string | null {
     if (!formData.business_name.trim()) return "نام کسب‌وکار الزامی است.";
+    if (!formData.business_handler.trim()) return "شناسه لینک اختصاصی الزامی است.";
+    if (!/^[-a-zA-Z0-9_]+$/.test(formData.business_handler.trim())) {
+        return "شناسه لینک اختصاصی فقط می‌تواند شامل حروف انگلیسی، عدد، خط تیره و آندرلاین باشد.";
+    }
     if (!formData.address.trim()) return "آدرس الزامی است.";
     if (!formData.telephone.trim()) return "تلفن الزامی است.";
 
@@ -178,6 +186,11 @@ export default function RegisterPage() {
     const [step, setStep] = useState<Step>(1);
     const [formData, setFormData] = useState<RegisterFormState>(initialFormState);
     const submitLockRef = useRef(false);
+    const [parentBusinessHandler] = useState(() =>
+        normalizeBusinessPathSegment(
+            typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("business_handler") ?? "" : "",
+        ),
+    );
 
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
         setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -233,11 +246,14 @@ export default function RegisterPage() {
                 email: formData.email.trim(),
                 birth_date: normalizeDigits(formData.birth_date),
                 business_name: formData.business_name.trim(),
+                business_handler: normalizeBusinessPathSegment(formData.business_handler.trim()),
                 address: formData.address.trim(),
                 telephone: formData.telephone.trim(),
+                business_logo: formData.business_logo.trim() || undefined,
+                parent_business_handler: parentBusinessHandler || undefined,
             });
 
-            const businessName = normalizeBusinessPathSegment(formData.business_name);
+            const businessName = normalizeBusinessPathSegment(formData.business_handler || formData.business_name);
             toast.success("ثبت‌نام با موفقیت انجام شد");
             router.replace(`/pending?business_name=${encodeURIComponent(businessName || formData.business_name.trim())}`);
         } catch (error) {
@@ -394,6 +410,26 @@ export default function RegisterPage() {
                             </div>
 
                             <div className="group/input">
+                                <Label htmlFor="business_handler" className="mb-2 block text-right text-brand-text-primary">
+                                    شناسه لینک اختصاصی
+                                </Label>
+                                <Input
+                                    id="business_handler"
+                                    name="business_handler"
+                                    type="text"
+                                    required
+                                    value={formData.business_handler}
+                                    onChange={handleChange}
+                                    placeholder="dornica"
+                                    dir="ltr"
+                                    className="transition-all duration-300 focus:scale-[1.02]"
+                                />
+                                <p className="mt-2 text-right text-xs leading-6 text-brand-text-secondary">
+                                    فقط حروف انگلیسی، عدد، خط تیره و آندرلاین مجاز است.
+                                </p>
+                            </div>
+
+                            <div className="group/input">
                                 <Label htmlFor="address" className="mb-2 block text-right text-brand-text-primary">
                                     آدرس
                                 </Label>
@@ -426,8 +462,30 @@ export default function RegisterPage() {
                                 />
                             </div>
 
+                            <div className="group/input">
+                                <Label htmlFor="business_logo" className="mb-2 block text-right text-brand-text-primary">
+                                    لینک لوگو یا عکس سازمانی (اختیاری)
+                                </Label>
+                                <Input
+                                    id="business_logo"
+                                    name="business_logo"
+                                    type="url"
+                                    value={formData.business_logo}
+                                    onChange={handleChange}
+                                    placeholder="https://example.com/logo.png"
+                                    dir="ltr"
+                                    className="transition-all duration-300 focus:scale-[1.02]"
+                                />
+                            </div>
+
+                            {parentBusinessHandler ? (
+                                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm leading-7 text-emerald-100">
+                                    ثبت‌نام شما از طریق لینک معرف <span dir="ltr" className="font-semibold">{parentBusinessHandler}</span> انجام می‌شود.
+                                </div>
+                            ) : null}
+
                             <div className="rounded-2xl border border-silver-dark/20 bg-brand-base/35 px-4 py-3 text-sm leading-7 text-brand-text-secondary">
-                                پس از ثبت اطلاعات و تایید مرجع لینک اختصاصی شما فعال می‌شود و داشبورد زیرمجموعه‌تان در دسترس قرار می‌گیرد.
+                                پس از ثبت اطلاعات، تا زمان تایید مرجع دسترسی به داشبورد فعال نمی‌شود.
                             </div>
                         </>
                     )}

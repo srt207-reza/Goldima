@@ -1,6 +1,6 @@
 import type { ApiUser } from "@/types/api/user";
 
-export type NormalizedUserRole = "public" | "reference" | "wholesale" | "retail" | "unknown";
+export type NormalizedUserRole = "reference" | "wholesale" | "retail" | "unknown";
 
 const normalizeText = (value: unknown): string => {
     if (typeof value !== "string") {
@@ -14,15 +14,15 @@ const normalizeText = (value: unknown): string => {
         .replace(/[._-]+/g, "");
 };
 
-const ROLE_ALIASES: Record<Exclude<NormalizedUserRole, "public" | "unknown">, string[]> = {
-    reference: ["مرجع", "reference", "referrer", "agent", "reseller"],
+const ROLE_ALIASES: Record<Exclude<NormalizedUserRole, "unknown">, string[]> = {
+    reference: ["مرجع", "master", "MASTER", "reference", "referrer", "agent", "reseller"],
     wholesale: ["عمدهفروش", "عمده", "wholesale", "wholesaler", "bulk"],
     retail: ["تکفروش", "تک", "retail", "retailer", "single"],
 };
 
 export function getNormalizedUserRole(user?: ApiUser | null): NormalizedUserRole {
     if (!user) {
-        return "public";
+        return "unknown";
     }
 
     const candidateFields: unknown[] = [
@@ -39,7 +39,7 @@ export function getNormalizedUserRole(user?: ApiUser | null): NormalizedUserRole
         if (!normalized) continue;
 
         for (const [role, aliases] of Object.entries(ROLE_ALIASES) as [
-            Exclude<NormalizedUserRole, "public" | "unknown">,
+            Exclude<NormalizedUserRole, "unknown">,
             string[],
         ][]) {
             if (aliases.some((alias) => normalizeText(alias) === normalized || normalized.includes(normalizeText(alias)))) {
