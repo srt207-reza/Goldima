@@ -57,6 +57,16 @@ export function canViewReferenceTools(user?: ApiUser | null): boolean {
     return getNormalizedUserRole(user) === "reference";
 }
 
+export function canViewUserManagement(user?: ApiUser | null): boolean {
+    const role = getNormalizedUserRole(user);
+    return role === "reference" || role === "wholesale";
+}
+
+export function canViewPricingTools(user?: ApiUser | null): boolean {
+    const role = getNormalizedUserRole(user);
+    return role === "reference" || role === "wholesale";
+}
+
 export function getDisplayName(user?: ApiUser | null): string {
     if (!user) {
         return "GOLDIMA";

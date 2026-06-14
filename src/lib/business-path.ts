@@ -1,3 +1,5 @@
+export const DEFAULT_PARENT_BUSINESS_HANDLER = "noros";
+
 export function normalizeBusinessPathSegment(value: string | undefined | null): string {
     const raw = (value ?? "").trim().toLowerCase();
 
@@ -15,7 +17,7 @@ export function normalizeBusinessPathSegment(value: string | undefined | null): 
 }
 
 export function buildBusinessUrl(value: string | undefined | null): string {
-    const baseUrl = (process.env.NEXT_PUBLIC_API_URL ?? "https://goldima.liara.run").replace(/\/$/, "");
+    const baseUrl = (location.origin).replace(/\/$/, "");
     const segment = normalizeBusinessPathSegment(value);
     return segment ? `${baseUrl}/${segment}` : baseUrl;
 }

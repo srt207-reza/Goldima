@@ -1,5 +1,15 @@
 import { axiosInstance } from "@/lib/axios";
-import type { ApiUser, CurrentUserResponse, UsersQueryParams, UsersResponse } from "@/types/api/user";
+import type {
+    ApiResponse,
+    ApiUser,
+    BusinessProfile,
+    CurrentUser,
+    CurrentUserResponse,
+    ManagedUser,
+    UserResponse,
+    UsersQueryParams,
+    UsersResponse,
+} from "@/types/api/user";
 
 export async function getUsers(params?: UsersQueryParams): Promise<UsersResponse> {
     const { data } = await axiosInstance.get<UsersResponse>("/api/users/", { params });
@@ -7,58 +17,139 @@ export async function getUsers(params?: UsersQueryParams): Promise<UsersResponse
 }
 
 export async function getCurrentUser(): Promise<CurrentUserResponse> {
-    const { data } = await axiosInstance.get<ApiUser>("/api/users/me/");
+    const { data } = await axiosInstance.get<CurrentUserResponse>("/api/users/me/");
     return data;
 }
 
+function hasData<T>(value: unknown): value is ApiResponse<T> {
+    return Boolean(value && typeof value === "object" && "data" in value);
+}
+
+function isBusinessProfile(value: unknown): value is BusinessProfile {
+    return Boolean(value && typeof value === "object" && "user" in value);
+}
+
+function normalizeUserItem(item: ApiUser | BusinessProfile): ManagedUser {
+    if (isBusinessProfile(item)) {
+        return {
+            ...item.user,
+            business_profile_id: item.id,
+            business_name: item.business_name,
+            business_handler: item.business_handler,
+            address: item.address,
+            telephone: item.telephone,
+            business_logo: item.business_logo,
+            business_profile_created_at: item.created_at,
+            business_profile_updated_at: item.updated_at,
+            business_profile_is_active: item.is_active,
+        };
+    }
+
+    return {
+        ...item,
+        business_profile_id:
+            typeof item.business_profile_id === "number" ? item.business_profile_id : null,
+        business_name: item.business_name ?? "",
+        business_handler: item.business_handler ?? null,
+        address: item.address ?? "",
+        telephone: item.telephone ?? "",
+        business_logo: item.business_logo ?? null,
+    };
+}
+
+export function normalizeCurrentUserResponse(response: CurrentUserResponse): CurrentUser {
+    const user = normalizeUserItem(response.data);
+
+    return {
+        ...user,
+        business_profile_id: response.data.id,
+    };
+}
+
+export function normalizeUsersResponse(response: UsersResponse): ManagedUser[] {
+    const payload = hasData<ApiUser[] | BusinessProfile[]>(response) ? response.data : response;
+    const list =
+        Array.isArray(payload)
+            ? payload
+            : payload && typeof payload === "object" && "results" in payload && Array.isArray(payload.results)
+              ? payload.results
+              : [];
+
+    return list.map(normalizeUserItem);
+}
+
+function normalizeUserResponse(response: UserResponse): ManagedUser {
+    const payload = hasData<ApiUser | BusinessProfile>(response) ? response.data : response;
+    return normalizeUserItem(payload);
+}
+
 /**
- * Retrieve a single user by their identifier. The backend returns the
- * user record if found or a 404 error otherwise. Authentication is
- * required.
+ * Retrieve a single user by their identifier.
  *
  * @param userId Primary key or UUID of the user to fetch.
  */
-export async function getUserById(userId: string | number): Promise<ApiUser> {
-    const { data } = await axiosInstance.get<ApiUser>(`/api/users/${userId}/`);
-    return data;
+export async function getUserById(userId: string | number): Promise<ManagedUser> {
+    const { data } = await axiosInstance.get<UserResponse>(`/api/users/${userId}/`);
+    return normalizeUserResponse(data);
 }
 
 /**
- * Update a user record. Only privileged roles (e.g., the reference user)
- * are expected to call this endpoint. The payload can include any
- * mutable fields defined on the ApiUser type. Note that the backend
- * requires the path parameter as the canonical identifier.
+ * Update a user record.
  *
  * @param userId Identifier of the user to update.
  * @param payload Partial set of fields to update on the user.
  */
-export async function updateUser(userId: string | number, payload: Partial<ApiUser>): Promise<ApiUser> {
-    const { data } = await axiosInstance.put<ApiUser>(`/api/users/${userId}/`, payload);
+export async function updateUser(
+    userId: string | number,
+    payload: Partial<ApiUser>
+): Promise<ApiUser> {
+    const { data } = await axiosInstance.put<ApiResponse<ApiUser> | ApiUser>(
+        `/api/users/${userId}/`,
+        payload
+    );
+
+    if ("data" in data) {
+        return data.data;
+    }
+
     return data;
 }
 
 /**
- * Retrieve a business profile by its identifier. A profile record may
- * contain additional company-specific details such as business name,
- * address or telephone. See the OpenAPI documentation for the full
- * schema. Unknown fields are preserved.
+ * Retrieve a business profile by its identifier.
  *
  * @param profileId Identifier of the profile to fetch.
  */
-export async function getBusinessProfile(profileId: number): Promise<Record<string, unknown>> {
-    const { data } = await axiosInstance.get<Record<string, unknown>>(`/api/users/profile/${profileId}/`);
+export async function getBusinessProfile(profileId: number): Promise<BusinessProfile> {
+    const { data } = await axiosInstance.get<ApiResponse<BusinessProfile> | BusinessProfile>(
+        `/api/users/profile/${profileId}/`
+    );
+
+    if ("data" in data) {
+        return data.data;
+    }
+
     return data;
 }
 
 /**
- * Update a business profile record. Only privileged roles should call
- * this endpoint. The payload may include any mutable profile fields
- * supported by the backend.
+ * Update a business profile record.
  *
  * @param profileId Identifier of the profile to update.
  * @param payload Partial set of fields to update on the profile.
  */
-export async function updateBusinessProfile(profileId: number, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const { data } = await axiosInstance.put<Record<string, unknown>>(`/api/users/profile/${profileId}/`, payload);
+export async function updateBusinessProfile(
+    profileId: number,
+    payload: Partial<Omit<BusinessProfile, "id" | "user" | "created_at" | "updated_at">>
+): Promise<BusinessProfile> {
+    const { data } = await axiosInstance.put<ApiResponse<BusinessProfile> | BusinessProfile>(
+        `/api/users/profile/${profileId}/`,
+        payload
+    );
+
+    if ("data" in data) {
+        return data.data;
+    }
+
     return data;
 }

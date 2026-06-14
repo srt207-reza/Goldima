@@ -6,23 +6,27 @@ import {
     updateUser,
     getBusinessProfile,
     updateBusinessProfile,
+    normalizeCurrentUserResponse,
+    normalizeUsersResponse,
 } from "@/services/api/user";
 import { getAccessToken } from "@/lib/auth-storage";
-import type { ApiUser, UsersQueryParams } from "@/types/api/user";
+import type { ApiUser, BusinessProfile, CurrentUser, CurrentUserResponse, ManagedUser, UsersQueryParams, UsersResponse } from "@/types/api/user";
 
 export function useCurrentUserQuery() {
-    return useQuery({
+    return useQuery<CurrentUserResponse, Error, CurrentUser>({
         queryKey: ["api", "users", "me"],
         queryFn: getCurrentUser,
+        select: normalizeCurrentUserResponse,
         enabled: Boolean(getAccessToken()),
         retry: false,
     });
 }
 
 export function useUsersQuery(params?: UsersQueryParams) {
-    return useQuery({
+    return useQuery<UsersResponse, Error, ManagedUser[]>({
         queryKey: ["api", "users", params ?? null],
         queryFn: () => getUsers(params),
+        select: normalizeUsersResponse,
     });
 }
 
@@ -32,7 +36,7 @@ export function useUsersQuery(params?: UsersQueryParams) {
  * information.
  */
 export function useUserQuery(userId?: string | number) {
-    return useQuery<ApiUser, Error>({
+    return useQuery<ManagedUser, Error>({
         queryKey: ["api", "users", userId],
         queryFn: () => getUserById(userId as string),
         enabled: Boolean(userId),
@@ -57,7 +61,7 @@ export function useUpdateUserMutation() {
  * underlying query is enabled only when a profileId is provided.
  */
 export function useBusinessProfileQuery(profileId?: number) {
-    return useQuery<Record<string, unknown>, Error>({
+    return useQuery<BusinessProfile, Error>({
         queryKey: ["api", "profiles", profileId],
         queryFn: () => getBusinessProfile(profileId as number),
         enabled: typeof profileId === "number" && !Number.isNaN(profileId),
@@ -70,7 +74,7 @@ export function useBusinessProfileQuery(profileId?: number) {
  * fields.
  */
 export function useUpdateBusinessProfileMutation() {
-    return useMutation<Record<string, unknown>, Error, { profileId: number; payload: Record<string, unknown> }>({
+    return useMutation<BusinessProfile, Error, { profileId: number; payload: Partial<Omit<BusinessProfile, "id" | "user" | "created_at" | "updated_at">> }>({
         mutationFn: ({ profileId, payload }) => updateBusinessProfile(profileId, payload),
     });
 }

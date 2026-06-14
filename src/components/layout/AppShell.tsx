@@ -22,7 +22,7 @@ import {
 import toast from "react-hot-toast";
 import { useCurrentUserQuery, useLogoutMutation } from "@/hooks/api";
 import { clearAuthTokens, getRefreshToken } from "@/lib/auth-storage";
-import { canViewReferenceTools, getBusinessLabel, getDisplayName, getNormalizedUserRole } from "@/lib/user-role";
+import { canViewPricingTools, canViewUserManagement, getBusinessLabel, getDisplayName, getNormalizedUserRole } from "@/lib/user-role";
 import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import LOGO from "@/../public/assets/images/logo.png";
 
@@ -120,22 +120,20 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const roleLabel = useMemo(() => getRoleLabel(role), [role]);
     const displayName = useMemo(() => getDisplayName(currentUser), [currentUser]);
     const businessLabel = useMemo(() => getBusinessLabel(currentUser), [currentUser]);
-    const showReferenceTools = useMemo(() => canViewReferenceTools(currentUser), [currentUser]);
+    const showUserManagementTools = useMemo(() => canViewUserManagement(currentUser), [currentUser]);
+    const showPricingTools = useMemo(() => canViewPricingTools(currentUser), [currentUser]);
+    const hasRoleTools = showUserManagementTools || showPricingTools;
     const isAllowedDashboardUser = Boolean(currentUser && (role === "reference" || currentUser.status === "APPROVED"));
 
     const navItems: NavItem[] = [{ href: "/", label: "داشبورد", icon: LayoutDashboard }];
 
-    if (showReferenceTools) {
-        navItems.push(
-            { href: "/stores", label: "لیست کاربران", icon: Store },
-            { href: "/pricing", label: "قیمت‌گذاری‌ها", icon: Tags },
-        );
+    if (showUserManagementTools) {
+        navItems.push({ href: "/stores", label: "لیست کاربران", icon: Store });
     }
 
-    useEffect(() => {
-        setProfileMenuOpen(false);
-        setMobileMenuOpen(false);
-    }, [currentPathname]);
+    if (showPricingTools) {
+        navItems.push({ href: "/pricing", label: "قیمت‌گذاری‌ها", icon: Tags });
+    }
 
     useEffect(() => {
         if (hideShell || isLoadingCurrentUser) return;
@@ -147,8 +145,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
         }
 
         if (!isAllowedDashboardUser) {
-            const businessName = normalizeBusinessPathSegment(currentUser.business_name ?? currentUser.username ?? "");
-            router.replace(`/pending${businessName ? `?business_name=${encodeURIComponent(businessName)}` : ""}`);
+            const params = new URLSearchParams();
+            const businessHandler = normalizeBusinessPathSegment(currentUser.business_handler ?? "");
+
+            if (businessHandler) {
+                params.set("business_handler", businessHandler);
+            }
+
+            if (currentUser.business_name) {
+                params.set("business_name", currentUser.business_name);
+            }
+
+            router.replace(`/pending${params.size ? `?${params.toString()}` : ""}`);
         }
     }, [currentUser, hideShell, isAllowedDashboardUser, isCurrentUserError, isLoadingCurrentUser, router]);
 
@@ -256,7 +264,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                 />
                             ))}
 
-                            {!showReferenceTools ? (
+                            {!hasRoleTools ? (
                                 <div className="mt-2 rounded-3xl border border-dashed border-silver-dark/20 bg-brand-base/35 p-4 text-sm leading-7 text-brand-text-secondary">
                                     {!sidebarCollapsed && "با نقش فعلی فقط به بخش‌های مجاز حساب خود دسترسی دارید."}
                                 </div>
@@ -269,10 +277,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                             </p>
                                             <div className="flex items-center gap-2 text-sm text-brand-text-primary">
                                                 <Users className="h-4 w-4 text-silver-light" />
-                                                مرجع
+                                                {roleLabel}
                                             </div>
                                             <p className="mt-2 text-xs leading-6 text-brand-text-secondary">
-                                                لیست کاربران و قیمت‌گذاری‌ها فقط برای نقش مرجع نمایش داده می‌شود.
+                                                {showUserManagementTools && showPricingTools
+                                                    ? "لیست کاربران و قیمت‌گذاری‌ها برای نقش شما فعال است."
+                                                    : showPricingTools
+                                                      ? "قیمت‌گذاری‌ها برای نقش شما فعال است."
+                                                      : "لیست کاربران برای نقش شما فعال است."}
                                             </p>
                                         </>
                                     )}
@@ -363,6 +375,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                     <div className="p-2">
                                         <Link
                                             href="/profile"
+                                            onClick={() => setProfileMenuOpen(false)}
                                             className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5"
                                         >
                                             <UserCircle2 className="h-4 w-4 text-silver-light" />

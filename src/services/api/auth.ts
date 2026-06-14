@@ -1,5 +1,6 @@
 import { isValidJalaaliDate } from "jalaali-js";
 import { axiosInstance } from "@/lib/axios";
+import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
 import type {
     AuthTokenPairLike,
     LoginRequest,
@@ -156,9 +157,8 @@ export async function registerUser(payload: RegisterRequest): Promise<RegisterRe
     validateRegisterPayload(payload);
 
     const { parent_business_handler, ...requestPayload } = payload;
-    const registerEndpoint = parent_business_handler
-        ? `/api/${encodeURIComponent(parent_business_handler)}/register/`
-        : "/api/register/";
+    const parentBusinessHandler = normalizeBusinessPathSegment(parent_business_handler || DEFAULT_PARENT_BUSINESS_HANDLER);
+    const registerEndpoint = `/api/${encodeURIComponent(parentBusinessHandler)}/register/`;
 
     const { data } = await axiosInstance.post<unknown>(registerEndpoint, requestPayload);
     return data;

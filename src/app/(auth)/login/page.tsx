@@ -61,38 +61,45 @@ export default function LoginPage() {
         setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
-    const handleSubmit = async (e: FormEvent) => {
-        e.preventDefault();
+const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
 
-        try {
-            const response = await loginMutation.mutateAsync({
-                username: formData.username.trim(),
-                password: formData.password,
-            });
+    try {
+        const response = await loginMutation.mutateAsync({
+            username: formData.username.trim(),
+            password: formData.password,
+        });
 
-            setAuthTokens(response);
+        setAuthTokens(response);
 
-            const currentUser = await getCurrentUser();
+        const currentUser = await getCurrentUser();
 
-            toast.success("ورود موفقیت‌آمیز بود");
+        const role = String(currentUser.data.user.role ?? "").toUpperCase();
+        const status = String(currentUser.data.user.status ?? "").toUpperCase();
 
-            if (String(currentUser.role ?? "").toUpperCase() === "MASTER" || currentUser.status === "APPROVED") {
-                router.replace("/");
-                return;
-            }
+        toast.success("ورود موفقیت‌آمیز بود");
 
-            router.replace(
-                `/pending?business_name=${encodeURIComponent(currentUser.business_name ?? formData.username.trim())}`,
-            );
-        } catch (error) {
-            setFormData({
-                username: "",
-                password: "",
-            });
-            const message = error instanceof Error ? error.message : "ورود با خطا مواجه شد";
-            toast.error(message);
+        if (role === "MASTER" || status === "APPROVED") {
+            router.replace("/");
+            return;
         }
-    };
+
+        const params = new URLSearchParams({
+            business_handler: currentUser.data.business_handler ?? "",
+            business_name: currentUser.data.business_name ?? "",
+        });
+
+        router.replace(`/pending?${params.toString()}&business_handler=${encodeURIComponent(currentUser.data.business_handler ?? '')}`);
+    } catch (error) {
+        setFormData({
+            username: "",
+            password: "",
+        });
+
+        const message = error instanceof Error ? error.message : "ورود با خطا مواجه شد";
+        toast.error(message);
+    }
+};
 
     return (
         <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-brand-base via-brand-surface to-brand-card overflow-hidden">

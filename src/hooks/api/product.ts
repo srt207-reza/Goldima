@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+    ApiProduct,
     PricingRuleRequest,
     PricingRuleResponse,
     ProductBasePriceRequest,
@@ -9,14 +10,35 @@ import type {
     ProductPriceResponse,
 } from "@/types/api/product";
 import {
+    createProduct,
+    deleteProduct,
     getProductPrice,
     setBasePrice,
     setOverridePrice,
     setPricingRule,
     updateBasePrice,
     updateOverridePrice,
+    updateProduct,
     updatePricingRule,
 } from "@/services/api/product";
+
+export function useCreateProductMutation() {
+    return useMutation<ApiProduct, Error, Partial<ApiProduct>>({
+        mutationFn: createProduct,
+    });
+}
+
+export function useUpdateProductMutation() {
+    return useMutation<ApiProduct, Error, { productId: number; payload: Partial<ApiProduct> }>({
+        mutationFn: ({ productId, payload }) => updateProduct(productId, payload),
+    });
+}
+
+export function useDeleteProductMutation() {
+    return useMutation<void, Error, number>({
+        mutationFn: deleteProduct,
+    });
+}
 
 /**
  * React Query hook for retrieving a product’s price relative to the

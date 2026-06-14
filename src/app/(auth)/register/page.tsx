@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import DatePicker from "react-multi-date-picker";
 import DateObject from "react-date-object";
 import persian from "react-date-object/calendars/persian";
@@ -19,7 +19,7 @@ import {
     MOBILE_USERNAME_REGEX,
     PASSWORD_REGEX,
 } from "@/types/api/auth";
-import { normalizeBusinessPathSegment } from "@/lib/business-path";
+import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
 
 type Step = 1 | 2;
 
@@ -186,11 +186,30 @@ export default function RegisterPage() {
     const [step, setStep] = useState<Step>(1);
     const [formData, setFormData] = useState<RegisterFormState>(initialFormState);
     const submitLockRef = useRef(false);
-    const [parentBusinessHandler] = useState(() =>
-        normalizeBusinessPathSegment(
-            typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("business_handler") ?? "" : "",
-        ),
-    );
+    const [parentBusinessHandler] = useState(() => {
+        const handlerFromQuery =
+            typeof window !== "undefined"
+                ? new URLSearchParams(window.location.search).get("business_handler")
+                : null;
+
+        return normalizeBusinessPathSegment(handlerFromQuery || DEFAULT_PARENT_BUSINESS_HANDLER);
+    });
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const handlerFromQuery = normalizeBusinessPathSegment(params.get("business_handler") || "");
+
+        if (handlerFromQuery) {
+            if (handlerFromQuery !== params.get("business_handler")) {
+                params.set("business_handler", handlerFromQuery);
+                router.replace(`/register?${params.toString()}`, { scroll: false });
+            }
+            return;
+        }
+
+        params.set("business_handler", DEFAULT_PARENT_BUSINESS_HANDLER);
+        router.replace(`/register?${params.toString()}`, { scroll: false });
+    }, [router]);
 
     const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
         setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -484,9 +503,9 @@ export default function RegisterPage() {
                                 </div>
                             ) : null}
 
-                            <div className="rounded-2xl border border-silver-dark/20 bg-brand-base/35 px-4 py-3 text-sm leading-7 text-brand-text-secondary">
+                            {/* <div className="rounded-2xl border border-silver-dark/20 bg-brand-base/35 px-4 py-3 text-sm leading-7 text-brand-text-secondary">
                                 پس از ثبت اطلاعات، تا زمان تایید مرجع دسترسی به داشبورد فعال نمی‌شود.
-                            </div>
+                            </div> */}
                         </>
                     )}
 
