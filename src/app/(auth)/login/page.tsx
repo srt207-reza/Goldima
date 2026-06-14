@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AmbientBackground } from "@/components/ui/ambient-background";
+import { ShineBorder } from "@/components/ui/shine-border";
 import { useLoginMutation } from "@/hooks/api";
 import { setAuthTokens } from "@/lib/auth-storage";
 import { getCurrentUser } from "@/services/api/user";
@@ -102,7 +104,8 @@ const handleSubmit = async (e: FormEvent) => {
 };
 
     return (
-        <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-brand-base via-brand-surface to-brand-card overflow-hidden">
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-base px-4">
+            <AmbientBackground dense />
             <FloatingParticles />
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-silver-light/5 rounded-full blur-3xl animate-pulse"></div>
             <div
@@ -110,7 +113,8 @@ const handleSubmit = async (e: FormEvent) => {
                 style={{ animationDelay: "1s" }}
             ></div>
 
-            <Card className="relative mx-4 w-full max-w-md p-8 bg-brand-surface/80 backdrop-blur-xl border border-silver-dark/20 shadow-2xl hover:shadow-silver-glow transition-all duration-500 hover:-translate-y-2 group">
+            <Card className="relative w-full max-w-md overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-8 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:shadow-silver-glow group">
+                <ShineBorder className="opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
                 <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-silver-light to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
 
                 <div className="text-center mb-8">
@@ -169,10 +173,7 @@ const handleSubmit = async (e: FormEvent) => {
                         className="w-full cursor-pointer !mt-8 relative overflow-hidden group/btn"
                         disabled={loginMutation.isPending}
                     >
-                        <span className="relative text-white z-10">
-                            {loginMutation.isPending ? "در حال ورود..." : "ورود"}
-                        </span>
-                        <div className="absolute inset-0 bg-gradient-to-r from-silver-light/0 via-silver-light/20 to-silver-light/0 translate-x-[-100%] group-hover/btn:translate-x-[100%] transition-transform duration-1000"></div>
+                        {loginMutation.isPending ? "در حال ورود..." : "ورود"}
                     </Button>
                 </form>
 
@@ -181,7 +182,7 @@ const handleSubmit = async (e: FormEvent) => {
                         حساب کاربری ندارید؟{" "}
                         <Link
                             href="/register"
-                            className="text-silver-light hover:text-white transition-colors font-semibold"
+                            className="cursor-pointer text-silver-light hover:text-white transition-colors font-semibold"
                         >
                             ثبت‌نام کنید
                         </Link>

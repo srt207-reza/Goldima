@@ -23,6 +23,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MagicCard } from "@/components/ui/magic-card";
 import {
     useCreateProductMutation,
     useCurrentUserQuery,
@@ -177,7 +178,7 @@ function ProductPricePanel({ product, rule }: { product: PricingProduct; rule: P
     const parentPrice = data?.parent_price ?? product.basePrice;
 
     return (
-        <div className="rounded-lg border border-white/10 bg-brand-base/45 p-4">
+        <MagicCard className="rounded-2xl bg-brand-base/45 p-4" withBorderBeam={false}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <h3 className="truncate text-base font-bold text-brand-text-primary">{product.name}</h3>
@@ -211,7 +212,7 @@ function ProductPricePanel({ product, rule }: { product: PricingProduct; rule: P
                     ))}
                 </div>
             ) : null}
-        </div>
+        </MagicCard>
     );
 }
 
@@ -371,7 +372,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.35 }}
-                    className="overflow-hidden rounded-lg border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl"
+                    className="overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl"
                 >
                     <div className="grid gap-6 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
                         <div>
@@ -413,7 +414,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                             onSubmit={handleProductSubmit}
                             className="space-y-5"
                         >
-                            <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right backdrop-blur-xl">
+                            <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                                 <div className="mb-5 flex items-center gap-2">
                                     <PackagePlus className="h-5 w-5 text-silver-light" />
                                     <h2 className="text-lg font-bold text-brand-text-primary">محصول مرجع</h2>
@@ -439,20 +440,20 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                             type="checkbox"
                                             checked={productDraft.is_active}
                                             onChange={handleProductChange}
-                                            className="h-4 w-4 accent-silver-light"
+                                            className="h-4 w-4 cursor-pointer accent-silver-light"
                                         />
                                     </label>
                                 </div>
 
                                 <div className="mt-5 grid grid-cols-2 gap-2">
-                                    <Button type="submit" disabled={isSavingProduct} className="gap-2">
+                                    <Button type="submit" disabled={isSavingProduct} className="gap-2 cursor-pointer">
                                         <Save className="h-4 w-4" />
                                         {productDraft.localId ? "ذخیره" : "ثبت"}
                                     </Button>
                                     <button
                                         type="button"
                                         onClick={resetProductDraft}
-                                        className="inline-flex h-11 items-center justify-center rounded-lg border border-silver-dark/20 text-sm font-medium text-brand-text-primary transition hover:bg-white/5"
+                                        className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 text-sm font-medium text-brand-text-primary transition hover:bg-white/5"
                                     >
                                         پاک‌کردن
                                     </button>
@@ -469,7 +470,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                             onSubmit={handleRuleSubmit}
                             className="space-y-5"
                         >
-                            <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right backdrop-blur-xl">
+                            <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                                 <div className="mb-5 flex items-center gap-2">
                                     <Calculator className="h-5 w-5 text-silver-light" />
                                     <h2 className="text-lg font-bold text-brand-text-primary">قانون قیمت‌گذاری شما</h2>
@@ -485,7 +486,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                             name="type"
                                             value={pricingRuleDraft.type}
                                             onChange={handleRuleChange}
-                                            className="flex h-11 w-full rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-sm text-brand-text-primary focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/50"
+                                            className="flex h-11 w-full rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
                                         >
                                             <option value="PERCENT">درصدی</option>
                                             <option value="FIXED">عدد ثابت دلار</option>
@@ -500,7 +501,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                 </div>
 
                                 <div className="mt-5 flex justify-end">
-                                    <Button type="submit" disabled={isSavingRule} className="gap-2">
+                                    <Button type="submit" disabled={isSavingRule} className="gap-2 cursor-pointer">
                                         {pricingRuleDraft.type === "PERCENT" ? <Percent className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                                         {isSavingRule ? "در حال ذخیره..." : "ذخیره قانون"}
                                     </Button>
@@ -515,7 +516,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                         transition={{ duration: 0.35, delay: 0.14 }}
                         className={isReference || isWholesale ? "space-y-4" : "xl:col-span-2"}
                     >
-                        <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right backdrop-blur-xl">
+                        <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                             <div className="mb-5 flex items-center justify-between gap-3">
                                 <div className="flex items-center gap-2">
                                     <Layers3 className="h-5 w-5 text-silver-light" />
@@ -543,7 +544,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                                         <button
                                                             type="button"
                                                             onClick={() => handleEditProduct(product)}
-                                                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 text-sm text-brand-text-primary transition hover:bg-white/10"
+                                                            className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 text-sm text-brand-text-primary transition hover:bg-white/10"
                                                         >
                                                             <Edit3 className="h-4 w-4" />
                                                             ویرایش
@@ -552,7 +553,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                                             type="button"
                                                             onClick={() => handleDeleteProduct(product)}
                                                             disabled={deleteProductMutation.isPending}
-                                                            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 text-sm text-rose-100 transition hover:bg-rose-400/20 disabled:opacity-50"
+                                                            className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 text-sm text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
                                                         >
                                                             <Trash2 className="h-4 w-4" />
                                                             حذف

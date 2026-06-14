@@ -193,10 +193,10 @@ function UserEditor({ user }: { user: ManagedUser }) {
 
     return (
         <div className="space-y-5">
-            <div className="overflow-hidden rounded-lg border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl">
+            <div className="overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl">
                 <div className="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div>
-                        <Link href="/stores" className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-brand-text-secondary transition hover:text-brand-text-primary">
+                        <Link href="/stores" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-brand-text-secondary transition hover:text-brand-text-primary">
                             <ArrowRight className="h-4 w-4" />
                             بازگشت
                         </Link>
@@ -223,7 +223,7 @@ function UserEditor({ user }: { user: ManagedUser }) {
                                 type="button"
                                 onClick={() => handleStatusChange("APPROVED")}
                                 disabled={isSaving}
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20 disabled:opacity-50"
+                                className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 <CheckCircle2 className="h-4 w-4" />
                                 تایید
@@ -234,7 +234,7 @@ function UserEditor({ user }: { user: ManagedUser }) {
                                 type="button"
                                 onClick={() => handleStatusChange("REJECTED")}
                                 disabled={isSaving}
-                                className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20 disabled:opacity-50"
+                                className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 <XCircle className="h-4 w-4" />
                                 رد
@@ -245,7 +245,7 @@ function UserEditor({ user }: { user: ManagedUser }) {
             </div>
 
             <form onSubmit={handleSubmit} className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
-                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right backdrop-blur-xl">
+                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                     <div className="mb-5 flex items-center gap-2">
                         <UserRound className="h-5 w-5 text-silver-light" />
                         <h2 className="text-lg font-bold text-brand-text-primary">اطلاعات کاربری</h2>
@@ -285,7 +285,7 @@ function UserEditor({ user }: { user: ManagedUser }) {
                                 name="status"
                                 value={formData.status}
                                 onChange={handleChange}
-                                className="flex h-11 w-full rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-sm text-brand-text-primary focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/50"
+                                className="flex h-11 w-full cursor-pointer rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
                             >
                                 <option value="PENDING">در انتظار بررسی</option>
                                 <option value="APPROVED">تایید شده</option>
@@ -301,7 +301,7 @@ function UserEditor({ user }: { user: ManagedUser }) {
                     </div>
                 </Card>
 
-                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right backdrop-blur-xl">
+                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                     <div className="mb-5 flex items-center gap-2">
                         <Building2 className="h-5 w-5 text-silver-light" />
                         <h2 className="text-lg font-bold text-brand-text-primary">اطلاعات کسب‌وکار</h2>
@@ -336,7 +336,7 @@ function UserEditor({ user }: { user: ManagedUser }) {
                                 value={formData.address}
                                 onChange={handleChange}
                                 rows={4}
-                                className="w-full resize-none rounded-lg border border-brand-border bg-brand-surface px-4 py-3 text-sm leading-7 text-brand-text-primary placeholder:text-brand-text-secondary focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/50"
+                                className="w-full resize-none rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-3 text-sm leading-7 text-brand-text-primary placeholder:text-brand-text-secondary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
                             />
                         </div>
                     </div>
@@ -368,7 +368,7 @@ function UserEditor({ user }: { user: ManagedUser }) {
                     </Card>
 
                     <div className="mt-5 flex justify-end">
-                        <Button type="submit" disabled={isSaving} className="gap-2">
+                        <Button type="submit" disabled={isSaving} className="gap-2 cursor-pointer">
                             <Save className="h-4 w-4" />
                             {isSaving ? "در حال ذخیره..." : "ذخیره تغییرات"}
                         </Button>

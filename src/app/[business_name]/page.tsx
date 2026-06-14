@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { Card } from "@/components/ui/card";
+import { AmbientBackground } from "@/components/ui/ambient-background";
+import { ShineBorder } from "@/components/ui/shine-border";
 import { buildBusinessUrl, normalizeBusinessPathSegment } from "@/lib/business-path";
 
 /**
@@ -20,11 +22,13 @@ export default function BusinessRegistrationLandingPage() {
     const businessUrl = buildBusinessUrl(businessHandler);
 
     return (
-        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-brand-base via-brand-surface to-brand-card px-4 py-10">
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-base px-4 py-10">
+            <AmbientBackground dense />
             <div className="absolute top-0 left-1/4 h-96 w-96 rounded-full bg-silver-light/5 blur-3xl" />
             <div className="absolute bottom-0 right-1/4 h-96 w-96 rounded-full bg-silver-metallic/5 blur-3xl" />
 
-            <Card className="relative w-full max-w-xl border border-silver-dark/20 bg-brand-surface/80 p-8 text-right shadow-2xl backdrop-blur-xl">
+            <Card className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-8 text-right shadow-2xl backdrop-blur-xl group">
+                <ShineBorder className="opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
                 <div className="mb-6 inline-flex rounded-full border border-silver-light/20 bg-silver-light/10 px-4 py-2 text-sm text-silver-light">
                     ثبت‌نام زیرمجموعه
                 </div>
@@ -41,13 +45,13 @@ export default function BusinessRegistrationLandingPage() {
                 <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                     <Link
                         href={`/register?business_handler=${encodeURIComponent(businessHandler)}`}
-                        className="inline-flex items-center justify-center rounded-xl px-6 py-3 font-semibold text-white"
+                        className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-silver-light/25 bg-silver-light/15 px-6 py-3 font-semibold text-white shadow-silver-glow transition-all hover:bg-silver-light/25"
                     >
                         ثبت‌نام از طریق این لینک
                     </Link>
                     <Link
                         href="/login"
-                        className="inline-flex items-center justify-center rounded-xl border border-silver-dark/20 px-6 py-3 font-medium text-brand-text-primary transition-all hover:bg-white/5"
+                        className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 px-6 py-3 font-medium text-brand-text-primary transition-all hover:bg-white/5"
                     >
                         ورود به حساب
                     </Link>

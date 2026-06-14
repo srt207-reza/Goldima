@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { MagicCard } from "@/components/ui/magic-card";
 
 // نوع‌بندی دقیق برای ساختار قیمت‌ها
 interface MarketPrices {
@@ -199,7 +200,7 @@ export default function SilverBullionPrices() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 
                 {/* کارت شمش ترکیه */}
-                <div className="bg-brand-surface/40 border border-white/5 rounded-2xl p-6 shadow-xl backdrop-blur-sm hover:-translate-y-1 transition-transform duration-300 hover:shadow-silver-glow group">
+                <MagicCard className="rounded-3xl bg-brand-surface/50 p-6" spotlightClassName="bg-silver-light/10">
                     {/* هدر کارت: ساختار پرچم (چپ) - متن (وسط) - شمش (راست) */}
                     <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-xl p-3 mb-6">
                         <div className="flex items-center gap-3">
@@ -221,10 +222,10 @@ export default function SilverBullionPrices() {
                             <PriceRow label="فروش" price={prices.turkey.originMarket.sell} change={changes.turkey.originMarket.sell} />
                         </div>
                     </div>
-                </div>
+                </MagicCard>
 
                 {/* کارت شمش امارات */}
-                <div className="bg-brand-surface/40 border border-white/5 rounded-2xl p-6 shadow-xl backdrop-blur-sm hover:-translate-y-1 transition-transform duration-300 hover:shadow-silver-glow group">
+                <MagicCard className="rounded-3xl bg-brand-surface/50 p-6" spotlightClassName="bg-emerald-400/10">
                     {/* هدر کارت: ساختار پرچم (چپ) - متن (وسط) - شمش (راست) */}
                     <div className="flex items-center justify-between bg-white/5 border border-white/5 rounded-xl p-3 mb-6">
                         <div className="flex items-center gap-3">
@@ -246,7 +247,7 @@ export default function SilverBullionPrices() {
                             <PriceRow label="فروش" price={prices.uae.originMarket.sell} change={changes.uae.originMarket.sell} />
                         </div>
                     </div>
-                </div>
+                </MagicCard>
 
             </div>
         </div>

@@ -24,10 +24,10 @@ export default function PriceCard({ title, subtitle, price, unit, change, icon =
     const isNegative = change && change < 0;
 
     return (
-        <Card className="bg-brand-surface border-brand-border hover:border-gold/50 transition-all duration-300 p-6 group">
+        <Card className="bg-brand-surface border-brand-border hover:border-silver-light/50 transition-all duration-300 p-6 group">
             <div className="flex items-start justify-between mb-4">
                 <div>
-                    <h3 className="text-lg font-semibold text-brand-text-primary group-hover:text-gold transition-colors">
+                    <h3 className="text-lg font-semibold text-brand-text-primary group-hover:text-silver-light transition-colors">
                         {title}
                     </h3>
                     {subtitle && (
@@ -39,7 +39,7 @@ export default function PriceCard({ title, subtitle, price, unit, change, icon =
 
             <div className="space-y-2">
                 <div className="flex items-baseline gap-2">
-                    <span className="text-3xl font-bold text-gold">
+                    <span className="text-3xl font-bold text-silver-light">
                         {animatedPrice.toLocaleString("fa-IR")}
                     </span>
                     <span className="text-sm text-brand-text-secondary">{unit}</span>

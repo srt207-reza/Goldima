@@ -21,6 +21,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { MagicCard } from "@/components/ui/magic-card";
 import { useCurrentUserQuery, useUpdateBusinessProfileMutation, useUpdateUserMutation } from "@/hooks/api";
 import { getBusinessLabel, getDisplayName, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
 import type { CurrentUser } from "@/types/api/user";
@@ -73,13 +74,13 @@ function LoadingState() {
 
 function StatCard({ icon: Icon, label, value }: { icon: typeof UserRound; label: string; value: string }) {
     return (
-        <div className="rounded-lg border border-white/10 bg-brand-base/45 p-4">
+        <MagicCard className="rounded-2xl bg-brand-base/45 p-4" withBorderBeam={false}>
             <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg border border-silver-dark/20 bg-silver-light/10 text-silver-light">
                 <Icon className="h-5 w-5" />
             </div>
             <p className="text-xs text-brand-text-secondary">{label}</p>
             <p className="mt-2 truncate text-sm font-semibold text-brand-text-primary">{value || "ثبت نشده"}</p>
-        </div>
+        </MagicCard>
     );
 }
 
@@ -145,7 +146,7 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.35 }}
-                className="overflow-hidden rounded-lg border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl"
+                className="overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl"
             >
                 <div className="grid gap-6 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div>
@@ -192,7 +193,7 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                 onSubmit={handleSubmit}
                 className="grid gap-5 xl:grid-cols-[1fr_0.85fr]"
             >
-                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right backdrop-blur-xl">
+                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                     <div className="mb-5 flex items-center gap-2">
                         <UserRound className="h-5 w-5 text-silver-light" />
                         <h2 className="text-lg font-bold text-brand-text-primary">اطلاعات هویتی</h2>
@@ -232,7 +233,7 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                     </div>
                 </Card>
 
-                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right backdrop-blur-xl">
+                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                     <div className="mb-5 flex items-center gap-2">
                         <Building2 className="h-5 w-5 text-silver-light" />
                         <h2 className="text-lg font-bold text-brand-text-primary">اطلاعات کسب‌وکار</h2>
@@ -272,11 +273,11 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                         value={formData.address}
                         onChange={handleChange}
                         rows={4}
-                        className="w-full resize-none rounded-lg border border-brand-border bg-brand-surface px-4 py-3 text-sm leading-8 text-brand-text-primary placeholder:text-brand-text-secondary focus:border-gold focus:outline-none focus:ring-2 focus:ring-gold/50"
+                        className="w-full resize-none rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-3 text-sm leading-8 text-brand-text-primary placeholder:text-brand-text-secondary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
                     />
 
                     <div className="mt-5 flex justify-end">
-                        <Button type="submit" disabled={isSaving} className="gap-2">
+                        <Button type="submit" disabled={isSaving} className="gap-2 cursor-pointer">
                             <Save className="h-4 w-4" />
                             {isSaving ? "در حال ذخیره..." : "ذخیره پروفایل"}
                         </Button>

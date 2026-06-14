@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, Suspense } from "react";
 import { Card } from "@/components/ui/card";
+import { AmbientBackground } from "@/components/ui/ambient-background";
+import { ShineBorder } from "@/components/ui/shine-border";
 import { buildBusinessUrl, normalizeBusinessPathSegment } from "@/lib/business-path";
 
 const FloatingParticles = () => (
@@ -43,7 +45,8 @@ function PendingContent() {
     const internalBusinessHref = businessPath ? `/${businessPath}` : "/";
 
     return (
-        <Card className="relative w-full max-w-lg p-8 bg-brand-surface/80 backdrop-blur-xl border border-silver-dark/20 shadow-2xl hover:shadow-silver-glow transition-all duration-500 hover:-translate-y-2 group text-right">
+        <Card className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-8 text-right shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:shadow-silver-glow group">
+            <ShineBorder className="opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
             <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-silver-light to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
 
             <div className="mb-8">
@@ -89,7 +92,7 @@ function PendingContent() {
             <div className="mt-8">
                 <Link
                     href={internalBusinessHref}
-                    className="inline-flex w-full items-center justify-center rounded-lg border border-silver-dark/30 px-6 py-3 font-medium text-brand-text-primary transition-all duration-200 hover:bg-brand-hover/50"
+                    className="inline-flex w-full cursor-pointer items-center justify-center rounded-xl border border-silver-dark/30 bg-white/[0.03] px-6 py-3 font-medium text-brand-text-primary transition-all duration-200 hover:border-silver-light/25 hover:bg-brand-hover/50"
                 >
                     مشاهده لینک اختصاصی
                 </Link>
@@ -100,7 +103,8 @@ function PendingContent() {
 
 export default function PendingPage() {
     return (
-        <div className="relative flex items-center justify-center min-h-screen bg-gradient-to-br from-brand-base via-brand-surface to-brand-card overflow-hidden px-4">
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-base px-4">
+            <AmbientBackground dense />
             <FloatingParticles />
 
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-silver-light/5 rounded-full blur-3xl animate-pulse" />

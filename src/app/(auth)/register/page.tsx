@@ -12,6 +12,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { AmbientBackground } from "@/components/ui/ambient-background";
+import { ShineBorder } from "@/components/ui/shine-border";
 import { useRegisterMutation } from "@/hooks/api";
 import {
     EMAIL_REGEX,
@@ -284,14 +286,16 @@ export default function RegisterPage() {
     };
 
     return (
-        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-linear-to-br from-brand-base via-brand-surface to-brand-card">
+        <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-base px-4">
+            <AmbientBackground dense />
             <div className="absolute top-0 right-1/4 h-96 w-96 rounded-full bg-silver-light/5 blur-3xl animate-pulse"></div>
             <div
                 className="absolute bottom-0 left-1/4 h-96 w-96 rounded-full bg-silver-metallic/5 blur-3xl animate-pulse"
                 style={{ animationDelay: "1s" }}
             ></div>
 
-            <Card className="relative w-full max-w-3xl overflow-hidden border border-silver-dark/20 bg-brand-surface/80 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-silver-glow sm:p-8">
+            <Card className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-silver-glow sm:p-8 group">
+                <ShineBorder className="opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
                 <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-transparent via-silver-light to-transparent opacity-0 transition-opacity duration-700 hover:opacity-100"></div>
 
                 <div className="mb-8 text-center">
@@ -517,10 +521,7 @@ export default function RegisterPage() {
                         ) : null}
 
                         <Button type="submit" className="w-full cursor-pointer relative overflow-hidden group/btn text-white" disabled={registerMutation.isPending || submitLockRef.current}>
-                            <span className="relative z-10">
-                                {registerMutation.isPending ? "در حال ثبت‌نام..." : step === 1 ? "مرحله بعد" : "ثبت‌نام"}
-                            </span>
-                            <div className="absolute inset-0 translate-x-[-100%] bg-linear-to-r from-silver-light/0 via-silver-light/20 to-silver-light/0 transition-transform duration-1000 group-hover/btn:translate-x-[100%]"></div>
+                            {registerMutation.isPending ? "در حال ثبت‌نام..." : step === 1 ? "مرحله بعد" : "ثبت‌نام"}
                         </Button>
                     </div>
                 </form>
@@ -528,7 +529,7 @@ export default function RegisterPage() {
                 <div className="mt-6 text-center text-sm text-brand-text-secondary">
                     <p className="text-right leading-relaxed">
                         قبلاً ثبت‌نام کرده‌اید؟{" "}
-                        <Link href="/login" className="font-semibold text-white transition-colors hover:text-silver-light">
+                        <Link href="/login" className="cursor-pointer font-semibold text-white transition-colors hover:text-silver-light">
                             ورود به حساب
                         </Link>
                     </p>

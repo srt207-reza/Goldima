@@ -24,6 +24,7 @@ import { useCurrentUserQuery, useLogoutMutation } from "@/hooks/api";
 import { clearAuthTokens, getRefreshToken } from "@/lib/auth-storage";
 import { canViewPricingTools, canViewUserManagement, getBusinessLabel, getDisplayName, getNormalizedUserRole } from "@/lib/user-role";
 import { normalizeBusinessPathSegment } from "@/lib/business-path";
+import { AmbientBackground } from "@/components/ui/ambient-background";
 import LOGO from "@/../public/assets/images/logo.png";
 
 type NavItem = {
@@ -91,7 +92,7 @@ function NavLink({
             onClick={onClick}
             title={collapsed ? label : undefined}
             className={[
-                "flex items-center gap-3 rounded-2xl border py-3 text-sm transition-all duration-200",
+                "flex cursor-pointer items-center gap-3 rounded-2xl border py-3 text-sm transition-all duration-200",
                 collapsed ? "justify-center px-3" : "px-4",
                 active
                     ? "border-silver-light/20 bg-silver-light/10 text-silver-light shadow-[0_0_20px_rgba(255,255,255,0.06)]"
@@ -193,6 +194,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
     return (
         <div className="relative min-h-screen overflow-hidden border border-white/5 bg-brand-base text-brand-text-primary shadow-[0_25px_90px_rgba(2,6,23,0.28)]">
+            <AmbientBackground className="opacity-70" dense />
             {mobileMenuOpen ? (
                 <div
                     className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
@@ -230,7 +232,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                         <button
                             type="button"
                             onClick={() => setMobileMenuOpen(false)}
-                            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-silver-dark/20 text-brand-text-primary lg:hidden"
+                            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 text-brand-text-primary lg:hidden"
                             aria-label="بستن منو"
                         >
                             <X className="h-4 w-4" />
@@ -330,7 +332,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                         <button
                             type="button"
                             onClick={() => setMobileMenuOpen((value) => !value)}
-                            className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-silver-dark/20 bg-brand-base/50 text-brand-text-primary transition-all hover:bg-white/5 lg:hidden"
+                            className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 bg-brand-base/50 text-brand-text-primary transition-all hover:bg-white/5 lg:hidden"
                             aria-label="باز کردن منو"
                         >
                             <Menu className="h-5 w-5" />
@@ -347,7 +349,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                             <button
                                 type="button"
                                 onClick={() => setProfileMenuOpen((value) => !value)}
-                                className="inline-flex items-center gap-3 rounded-2xl border border-silver-dark/20 bg-brand-base/50 px-4 py-2.5 text-right transition-all hover:border-silver-light/20 hover:bg-white/5"
+                                className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-silver-dark/20 bg-brand-base/50 px-4 py-2.5 text-right transition-all hover:border-silver-light/20 hover:bg-white/5"
                             >
                                 <div className="flex h-10 w-10 items-center justify-center rounded-full border border-silver-dark/20 bg-silver-light/10 text-sm font-semibold text-silver-light">
                                     {displayName.slice(0, 1).toUpperCase()}
@@ -376,7 +378,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                         <Link
                                             href="/profile"
                                             onClick={() => setProfileMenuOpen(false)}
-                                            className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5"
+                                            className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5"
                                         >
                                             <UserCircle2 className="h-4 w-4 text-silver-light" />
                                             پروفایل
@@ -385,7 +387,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                             type="button"
                                             onClick={handleLogout}
                                             disabled={logoutMutation.isPending}
-                                            className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5 disabled:opacity-60"
+                                            className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                             <LogOut className="h-4 w-4 text-silver-light" />
                                             خروج از حساب
@@ -398,8 +400,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 </div>
             </header>
 
-            <main className={["pt-20 transition-[padding-right] duration-300", mainOffset].join(" ")}>
-                <div className="min-h-[calc(100vh-5rem)] w-full bg-brand-surface/35 p-0">{children}</div>
+            <main className={["relative z-10 pt-20 transition-[padding-right] duration-300", mainOffset].join(" ")}>
+                <div className="min-h-[calc(100vh-5rem)] w-full bg-brand-surface/25 p-0 backdrop-blur-[1px]">{children}</div>
             </main>
         </div>
     );

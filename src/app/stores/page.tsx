@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
+import { MagicCard } from "@/components/ui/magic-card";
 import { useCurrentUserQuery, useUpdateUserMutation, useUsersQuery } from "@/hooks/api";
 import { canViewUserManagement, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
 import type { ManagedUser, UserStatus } from "@/types/api/user";
@@ -96,7 +97,7 @@ function DeniedState() {
                     لیست کاربران برای مرجع و عمده‌فروش فعال است. تک‌فروش فقط به داشبورد و بخش‌های مجاز حساب خودش دسترسی دارد.
                 </p>
                 <div className="mt-8">
-                    <Link href="/" className="inline-flex items-center justify-center rounded-lg border border-silver-dark/20 px-6 py-3 font-medium text-brand-text-primary transition-all hover:bg-white/5">
+                    <Link href="/" className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 px-6 py-3 font-medium text-brand-text-primary transition-all hover:bg-white/5">
                         بازگشت به داشبورد
                     </Link>
                 </div>
@@ -154,7 +155,7 @@ function UserCard({
     const canReject = user.status !== "REJECTED";
 
     return (
-        <article className="rounded-lg border border-white/10 bg-brand-base/55 p-4 shadow-[0_14px_34px_rgba(0,0,0,0.18)] transition hover:border-silver-light/25 hover:bg-brand-base/75">
+        <MagicCard className="rounded-2xl bg-brand-base/55 p-4 shadow-[0_14px_34px_rgba(0,0,0,0.18)]" withBorderBeam={false}>
             <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                     <h3 className="truncate text-base font-bold text-brand-text-primary">{displayName}</h3>
@@ -196,7 +197,7 @@ function UserCard({
             <div className="mt-5 grid grid-cols-2 gap-2">
                 <Link
                     href={`/stores/${encodeURIComponent(String(user.id))}`}
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 text-sm font-medium text-brand-text-primary transition hover:bg-white/10"
+                    className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 text-sm font-medium text-brand-text-primary transition hover:bg-white/10"
                 >
                     <Eye className="h-4 w-4" />
                     جزئیات
@@ -207,7 +208,7 @@ function UserCard({
                         type="button"
                         onClick={() => onStatusChange(user, "APPROVED")}
                         disabled={isMutating}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20 disabled:opacity-50"
+                        className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <CheckCircle2 className="h-4 w-4" />
                         تایید
@@ -217,7 +218,7 @@ function UserCard({
                         type="button"
                         onClick={() => onStatusChange(user, "REJECTED")}
                         disabled={!canReject || isMutating}
-                        className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20 disabled:opacity-50"
+                        className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         <XCircle className="h-4 w-4" />
                         رد
@@ -230,13 +231,13 @@ function UserCard({
                     type="button"
                     onClick={() => onStatusChange(user, "REJECTED")}
                     disabled={isMutating}
-                    className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-rose-300/20 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-400/10 disabled:opacity-50"
+                    className="mt-2 inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-rose-300/20 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-400/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                     <XCircle className="h-4 w-4" />
                     رد درخواست
                 </button>
             ) : null}
-        </article>
+        </MagicCard>
     );
 }
 
@@ -254,7 +255,7 @@ function StatusColumn({
     const Icon = config.icon;
 
     return (
-        <Card className={`min-h-[26rem] border bg-brand-surface/80 p-4 text-right backdrop-blur-xl ${config.accent}`}>
+        <Card className={`min-h-[26rem] overflow-hidden rounded-3xl border bg-brand-surface/80 p-4 text-right shadow-deep-card backdrop-blur-xl ${config.accent}`}>
             <div className="flex items-center justify-between gap-3">
                 <div>
                     <div className="flex items-center gap-2">
@@ -357,7 +358,7 @@ export default function StoresPage() {
     return (
         <div className="px-4 py-8">
             <div className="mx-auto w-full max-w-7xl space-y-6">
-                <div className="overflow-hidden rounded-lg border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl">
+                <div className="overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl">
                     <div className="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
                         <div>
                             <div className="inline-flex items-center gap-2 rounded-lg border border-silver-light/20 bg-silver-light/10 px-4 py-2 text-sm text-silver-light">
