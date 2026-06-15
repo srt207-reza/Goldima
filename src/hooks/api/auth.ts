@@ -1,29 +1,38 @@
 import { useMutation } from "@tanstack/react-query";
 import {
-    loginUser,
     logoutUser,
+    phoneLogin,
+    phoneRegister,
     refreshAccessToken,
-    registerUser,
+    sendPhoneOtp,
 } from "@/services/api/auth";
 import type {
-    LoginRequest,
-    LoginResponse,
     LogoutRequest,
-    RegisterRequest,
-    RegisterResponse,
+    PhoneLoginRequest,
+    PhoneLoginResponse,
+    PhoneRegisterRequest,
+    PhoneRegisterResponse,
+    PhoneSendOtpRequest,
+    PhoneSendOtpResponse,
     TokenRefreshRequest,
     TokenRefreshResponse,
 } from "@/types/api/auth";
 
-export function useLoginMutation() {
-    return useMutation<LoginResponse, Error, LoginRequest>({
-        mutationFn: loginUser,
+export function useSendPhoneOtpMutation() {
+    return useMutation<PhoneSendOtpResponse, Error, PhoneSendOtpRequest>({
+        mutationFn: sendPhoneOtp,
     });
 }
 
-export function useRegisterMutation() {
-    return useMutation<RegisterResponse, Error, RegisterRequest>({
-        mutationFn: registerUser,
+export function usePhoneLoginMutation() {
+    return useMutation<PhoneLoginResponse, Error, PhoneLoginRequest>({
+        mutationFn: phoneLogin,
+    });
+}
+
+export function usePhoneRegisterMutation() {
+    return useMutation<PhoneRegisterResponse, Error, PhoneRegisterRequest>({
+        mutationFn: phoneRegister,
     });
 }
 
@@ -38,3 +47,6 @@ export function useRefreshTokenMutation() {
         mutationFn: refreshAccessToken,
     });
 }
+
+export const useLoginMutation = usePhoneLoginMutation;
+export const useRegisterMutation = usePhoneRegisterMutation;

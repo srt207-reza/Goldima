@@ -57,6 +57,23 @@ function getInitialFormState(user: CurrentUser): ProfileFormState {
     };
 }
 
+function normalizeProfileFormState(state: ProfileFormState): ProfileFormState {
+    return {
+        first_name: state.first_name.trim(),
+        last_name: state.last_name.trim(),
+        email: state.email.trim(),
+        birth_date: state.birth_date.trim(),
+        business_name: state.business_name.trim(),
+        business_handler: state.business_handler.trim(),
+        address: state.address.trim(),
+        telephone: state.telephone.trim(),
+    };
+}
+
+function areProfileStatesEqual(left: ProfileFormState, right: ProfileFormState): boolean {
+    return JSON.stringify(normalizeProfileFormState(left)) === JSON.stringify(normalizeProfileFormState(right));
+}
+
 function LoadingState() {
     return (
         <div className="px-4 py-8">
@@ -88,12 +105,20 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
     const queryClient = useQueryClient();
     const updateUserMutation = useUpdateUserMutation();
     const updateBusinessProfileMutation = useUpdateBusinessProfileMutation();
+    const [savedFormData, setSavedFormData] = useState<ProfileFormState>(() => getInitialFormState(currentUser));
     const [formData, setFormData] = useState<ProfileFormState>(() => getInitialFormState(currentUser));
+
+    useEffect(() => {
+        const nextState = getInitialFormState(currentUser);
+        setSavedFormData(nextState);
+        setFormData(nextState);
+    }, [currentUser]);
 
     const role = getNormalizedUserRole(currentUser);
     const displayName = getDisplayName(currentUser);
     const businessLabel = getBusinessLabel(currentUser);
     const isSaving = updateUserMutation.isPending || updateBusinessProfileMutation.isPending;
+    const hasFormChanges = useMemo(() => !areProfileStatesEqual(formData, savedFormData), [formData, savedFormData]);
 
     const completion = useMemo(() => {
         const fields = Object.values(formData);
@@ -108,6 +133,10 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
+
+        if (!hasFormChanges || isSaving) {
+            return;
+        }
 
         try {
             await updateUserMutation.mutateAsync({
@@ -132,6 +161,7 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                 },
             });
 
+            setSavedFormData(formData);
             await queryClient.invalidateQueries({ queryKey: ["api", "users", "me"] });
             toast.success("پروفایل با موفقیت ذخیره شد");
         } catch (error) {
@@ -276,11 +306,14 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                         className="w-full resize-none rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-3 text-sm leading-8 text-brand-text-primary placeholder:text-brand-text-secondary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
                     />
 
-                    <div className="mt-5 flex justify-end">
-                        <Button type="submit" disabled={isSaving} className="gap-2 cursor-pointer">
+                    <div className="mt-5 flex flex-col items-end gap-2">
+                        <Button type="submit" disabled={isSaving || !hasFormChanges} className="gap-2 cursor-pointer">
                             <Save className="h-4 w-4" />
-                            {isSaving ? "در حال ذخیره..." : "ذخیره پروفایل"}
+                            {isSaving ? "در حال ذخیره..." : "ویرایش پروفایل"}
                         </Button>
+                        {!hasFormChanges && (
+                            <p className="text-xs text-brand-text-secondary">برای فعال شدن دکمه، حداقل یکی از فیلدها را تغییر بدهید.</p>
+                        )}
                     </div>
                 </Card>
             </motion.form>

@@ -6,13 +6,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
-    ChevronDown,
     LayoutDashboard,
     LogOut,
     Menu,
     PanelLeftClose,
     PanelLeftOpen,
     Settings2,
+    Share2,
     Store,
     Tags,
     UserCircle2,
@@ -33,7 +33,7 @@ type NavItem = {
     icon: typeof LayoutDashboard;
 };
 
-const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "stores", "pricing"]);
+const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "share-link", "stores", "pricing"]);
 
 function isAuthRoute(pathname: string): boolean {
     return ["/login", "/register", "/pending"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
@@ -111,7 +111,6 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const logoutMutation = useLogoutMutation();
     const { data: currentUser, isLoading: isLoadingCurrentUser, isError: isCurrentUserError } = useCurrentUserQuery();
 
-    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -126,7 +125,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const hasRoleTools = showUserManagementTools || showPricingTools;
     const isAllowedDashboardUser = Boolean(currentUser && (role === "reference" || currentUser.status === "APPROVED"));
 
-    const navItems: NavItem[] = [{ href: "/", label: "داشبورد", icon: LayoutDashboard }];
+    const navItems: NavItem[] = [
+        { href: "/", label: "داشبورد", icon: LayoutDashboard },
+        { href: "/profile", label: "پروفایل", icon: UserCircle2 },
+        { href: "/share-link", label: "اشتراک‌گذاری لینک", icon: Share2 },
+    ];
 
     if (showUserManagementTools) {
         navItems.push({ href: "/stores", label: "لیست کاربران", icon: Store });
@@ -195,19 +198,19 @@ export default function AppShell({ children }: { children: ReactNode }) {
     return (
         <div className="relative min-h-screen overflow-hidden border border-white/5 bg-brand-base text-brand-text-primary shadow-[0_25px_90px_rgba(2,6,23,0.28)]">
             <AmbientBackground className="opacity-70" dense />
-            {mobileMenuOpen ? (
-                <div
-                    className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-                    onClick={() => setMobileMenuOpen(false)}
-                />
-            ) : null}
+            <div
+                className={[
+                    "fixed inset-0 z-40 bg-black/55 backdrop-blur-sm transition-opacity duration-500 ease-out lg:hidden",
+                    mobileMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+                ].join(" ")}
+                onClick={() => setMobileMenuOpen(false)}
+            />
 
             <aside
                 className={[
-                    "fixed right-0 top-0 z-50 h-screen w-72 border-l border-white/5 bg-brand-surface/90 backdrop-blur-xl transition-[width,transform] duration-300",
+                    "fixed right-0 top-0 z-50 h-screen w-72 transform-gpu border-l border-white/5 bg-brand-surface/95 shadow-2xl shadow-black/25 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform lg:duration-300",
                     sidebarWidth,
                     mobileMenuOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0",
-                    "shadow-2xl shadow-black/25",
                 ].join(" ")}
             >
                 <div className="flex h-full flex-col">
@@ -300,7 +303,21 @@ export default function AppShell({ children }: { children: ReactNode }) {
                         </nav>
                     </div>
 
-                    <div className="border-t border-white/5 p-4 text-xs text-slate-500">
+                    <div className="space-y-3 border-t border-white/5 p-4 text-xs text-slate-500">
+                        <button
+                            type="button"
+                            onClick={handleLogout}
+                            disabled={logoutMutation.isPending}
+                            title={sidebarCollapsed ? "خروج از حساب" : undefined}
+                            className={[
+                                "flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-red-400/10 bg-red-500/5 py-3 text-sm font-medium text-red-100 transition-all hover:border-red-300/25 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60",
+                                sidebarCollapsed ? "justify-center px-3" : "px-4",
+                            ].join(" ")}
+                        >
+                            <LogOut className="h-4 w-4 shrink-0 text-red-200" />
+                            {!sidebarCollapsed && <span>{logoutMutation.isPending ? "در حال خروج..." : "خروج از حساب"}</span>}
+                        </button>
+
                         <div className={sidebarCollapsed ? "flex justify-center" : "flex items-center justify-between gap-3"}>
                             {!sidebarCollapsed && <span>نسخه 1.2</span>}
 
@@ -323,7 +340,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
             <header
                 className={[
-                    "fixed top-0 left-0 right-0 z-40 h-20 border-b border-white/5 bg-brand-surface/85 backdrop-blur-xl transition-[right] duration-300",
+                    "fixed top-0 left-0 right-0 z-40 h-20 border-b border-white/5 bg-brand-surface/85 backdrop-blur-xl transition-all duration-300",
                     headerOffset,
                 ].join(" ")}
             >
@@ -338,63 +355,22 @@ export default function AppShell({ children }: { children: ReactNode }) {
                             <Menu className="h-5 w-5" />
                         </button>
 
-                        <div className="min-w-0">
-                            <div className="truncate text-base font-bold text-white">داشبورد مدیریت</div>
-                            <div className="truncate text-xs text-brand-text-secondary">{businessLabel}</div>
+                        <div className="flex min-w-0 items-center gap-3">
+                            <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-base/60">
+                                <Image src={LOGO} alt="GOLDIMA Logo" fill className="object-contain p-1.5" priority />
+                            </div>
+
+                            <div className="min-w-0 text-right">
+                                <div className="truncate text-base font-bold text-white">{displayName}</div>
+                                <div className="truncate text-xs text-brand-text-secondary">{roleLabel}</div>
+                            </div>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <div className="relative">
-                            <button
-                                type="button"
-                                onClick={() => setProfileMenuOpen((value) => !value)}
-                                className="inline-flex cursor-pointer items-center gap-3 rounded-2xl border border-silver-dark/20 bg-brand-base/50 px-4 py-2.5 text-right transition-all hover:border-silver-light/20 hover:bg-white/5"
-                            >
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-silver-dark/20 bg-silver-light/10 text-sm font-semibold text-silver-light">
-                                    {displayName.slice(0, 1).toUpperCase()}
-                                </div>
-
-                                <div className="hidden flex-col items-start sm:flex">
-                                    <span className="text-sm font-semibold text-brand-text-primary">{businessLabel}</span>
-                                    <span className="text-[11px] text-brand-text-secondary">{roleLabel}</span>
-                                </div>
-
-                                <ChevronDown
-                                    className={`h-4 w-4 text-brand-text-secondary transition-transform ${
-                                        profileMenuOpen ? "rotate-180" : ""
-                                    }`}
-                                />
-                            </button>
-
-                            {profileMenuOpen ? (
-                                <div className="absolute left-0 mt-3 w-64 overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-surface/95 shadow-2xl backdrop-blur-xl">
-                                    <div className="border-b border-white/5 px-4 py-4">
-                                        <p className="text-sm font-semibold text-brand-text-primary">{displayName}</p>
-                                        <p className="mt-1 text-xs text-brand-text-secondary">{businessLabel}</p>
-                                    </div>
-
-                                    <div className="p-2">
-                                        <Link
-                                            href="/profile"
-                                            onClick={() => setProfileMenuOpen(false)}
-                                            className="flex cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5"
-                                        >
-                                            <UserCircle2 className="h-4 w-4 text-silver-light" />
-                                            پروفایل
-                                        </Link>
-                                        <button
-                                            type="button"
-                                            onClick={handleLogout}
-                                            disabled={logoutMutation.isPending}
-                                            className="flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-3 text-sm text-brand-text-primary transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            <LogOut className="h-4 w-4 text-silver-light" />
-                                            خروج از حساب
-                                        </button>
-                                    </div>
-                                </div>
-                            ) : null}
+                    <div className="hidden min-w-0 items-center rounded-2xl border border-silver-dark/20 bg-brand-base/45 px-4 py-2.5 text-right sm:flex">
+                        <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-brand-text-primary">{businessLabel}</p>
+                            <p className="mt-1 truncate text-[11px] text-brand-text-secondary">حساب فعال</p>
                         </div>
                     </div>
                 </div>

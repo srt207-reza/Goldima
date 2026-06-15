@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 const AUTH_PAGES = new Set(["/login", "/register"]);
 const PUBLIC_PAGES = new Set(["/login", "/register", "/pending"]);
-const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "stores", "pricing"]);
+const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "share-link", "stores", "pricing"]);
 
 function isSingleSegmentPath(pathname: string): boolean {
     const segments = pathname.split("/").filter(Boolean);
