@@ -392,20 +392,21 @@ export default function RegisterPage() {
 
                                 <div className="group/input">
                                     <div className="mb-2 flex items-center justify-between gap-3">
+                                        <Label htmlFor="code" className="block text-right text-brand-text-primary">کد تایید</Label>
+
                                         <button
                                             type="button"
                                             onClick={handleSendOtp}
                                             disabled={sendOtpMutation.isPending}
-                                            className="cursor-pointer text-xs font-semibold text-silver-light transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                            className="cursor-pointer text-xs font-semibold text-silver-light/50 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                                         >
                                             {sendOtpMutation.isPending ? "در حال ارسال..." : otpSent ? "ارسال مجدد کد" : "ارسال کد تایید"}
                                         </button>
-                                        <Label htmlFor="code" className="block text-right text-brand-text-primary">کد تایید</Label>
                                     </div>
                                     <Input id="code" name="code" type="text" inputMode="numeric" autoComplete="one-time-code" required value={formData.code} onChange={handleChange} placeholder="4829" dir="ltr" className="transition-all duration-300 focus:scale-[1.02]" />
-                                    <p className="mt-2 text-right text-xs leading-6 text-brand-text-secondary">
+                                    {/* <p className="mt-2 text-right text-xs leading-6 text-brand-text-secondary">
                                         اگر از صفحه ورود آمده‌اید، کد قبلاً برای همین شماره ارسال شده است.
-                                    </p>
+                                    </p> */}
                                 </div>
 
                                 <div className="group/input">
@@ -421,7 +422,7 @@ export default function RegisterPage() {
                         </>
                     ) : (
                         <>
-                            <div className="group/input">
+                            {/* <div className="group/input">
                                 <Label htmlFor="business_name" className="mb-2 block text-right text-brand-text-primary">نام کسب‌وکار</Label>
                                 <Input id="business_name" name="business_name" type="text" required value={formData.business_name} onChange={handleChange} placeholder="dornica" className="text-right transition-all duration-300 focus:scale-[1.02]" />
                             </div>
@@ -430,6 +431,44 @@ export default function RegisterPage() {
                                 <Label htmlFor="business_handler" className="mb-2 block text-right text-brand-text-primary">شناسه لینک اختصاصی</Label>
                                 <Input id="business_handler" name="business_handler" type="text" required value={formData.business_handler} onChange={handleChange} placeholder="dornica" dir="ltr" className="transition-all duration-300 focus:scale-[1.02]" />
                                 <p className="mt-2 text-right text-xs leading-6 text-brand-text-secondary">فقط حروف انگلیسی، عدد، خط تیره و آندرلاین مجاز است.</p>
+                            </div> */}
+
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div className="group/input">
+                                    <Label htmlFor="business_name" className="mb-2 block text-right text-brand-text-primary">
+                                        نام کسب‌وکار
+                                    </Label>
+                                    <Input
+                                        id="business_name"
+                                        name="business_name"
+                                        type="text"
+                                        required
+                                        value={formData.business_name}
+                                        onChange={handleChange}
+                                        placeholder="dornica"
+                                        className="text-right transition-all duration-300 focus:scale-[1.02]"
+                                    />
+                                </div>
+
+                                <div className="group/input">
+                                    <Label htmlFor="business_handler" className="mb-2 block text-right text-brand-text-primary">
+                                        شناسه لینک اختصاصی
+                                    </Label>
+                                    <Input
+                                        id="business_handler"
+                                        name="business_handler"
+                                        type="text"
+                                        required
+                                        value={formData.business_handler}
+                                        onChange={handleChange}
+                                        placeholder="dornica"
+                                        dir="ltr"
+                                        className="transition-all duration-300 focus:scale-[1.02]"
+                                    />
+                                    {/* <p className="mt-2 text-right text-xs leading-6 text-brand-text-secondary">
+                                        فقط حروف انگلیسی، عدد، خط تیره و آندرلاین مجاز است.
+                                    </p> */}
+                                </div>
                             </div>
 
                             <div className="group/input">
@@ -501,7 +540,7 @@ export default function RegisterPage() {
                         </>
                     )}
 
-                    <div className={step === 2 ? "grid grid-cols-1 gap-3 mt-8! sm:grid-cols-2" : "mt-8!"}>
+                    <div className={step === 2 ? "grid grid-cols-1 gap-3 sm:grid-cols-2" : "mt-8!"}>
                         {step === 2 ? (
                             <Button type="button" variant="ghost" onClick={handleBack} className="w-full cursor-pointer">
                                 بازگشت
