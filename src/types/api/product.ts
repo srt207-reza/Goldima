@@ -80,6 +80,8 @@ export type PricingRuleType = "PERCENT" | "FIXED";
  * currently authenticated user. Both `type` and `value` are mandatory.
  */
 export interface PricingRuleRequest {
+    /** Product identifier that this pricing rule belongs to. */
+    product: number;
     type: PricingRuleType;
     value: number;
 }
@@ -90,6 +92,7 @@ export interface PricingRuleRequest {
  */
 export type PricingRuleResponse = {
     id?: number;
+    product: number;
     type: PricingRuleType;
     value: number;
     created_at?: string;

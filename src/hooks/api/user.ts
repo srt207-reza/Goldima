@@ -10,7 +10,7 @@ import {
     normalizeUsersResponse,
 } from "@/services/api/user";
 import { getAccessToken } from "@/lib/auth-storage";
-import type { ApiUser, BusinessProfile, CurrentUser, CurrentUserResponse, ManagedUser, UsersQueryParams, UsersResponse } from "@/types/api/user";
+import type { ApiUser, BusinessProfile, BusinessProfileUpdatePayload, CurrentUser, CurrentUserResponse, ManagedUser, UsersQueryParams, UsersResponse } from "@/types/api/user";
 
 export function useCurrentUserQuery() {
     return useQuery<CurrentUserResponse, Error, CurrentUser>({
@@ -19,6 +19,9 @@ export function useCurrentUserQuery() {
         select: normalizeCurrentUserResponse,
         enabled: Boolean(getAccessToken()),
         retry: false,
+        staleTime: 0,
+        refetchOnMount: "always",
+        refetchOnWindowFocus: true,
     });
 }
 
@@ -74,7 +77,7 @@ export function useBusinessProfileQuery(profileId?: number) {
  * fields.
  */
 export function useUpdateBusinessProfileMutation() {
-    return useMutation<BusinessProfile, Error, { profileId: number; payload: Partial<Omit<BusinessProfile, "id" | "user" | "created_at" | "updated_at">> }>({
+    return useMutation<BusinessProfile, Error, { profileId: number; payload: BusinessProfileUpdatePayload }>({
         mutationFn: ({ profileId, payload }) => updateBusinessProfile(profileId, payload),
     });
 }

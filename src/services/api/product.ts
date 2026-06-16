@@ -117,7 +117,7 @@ export async function getProductPrice(productId: number): Promise<ProductPriceRe
  * they inherit from their upstream parent. Both POST and PUT are
  * supported by the backend. This helper uses POST by default.
  *
- * @param payload Contains the pricing rule type and value.
+ * @param payload Contains the product identifier, pricing rule type and value.
  * @returns The server’s representation of the pricing rule.
  */
 export async function setPricingRule(payload: PricingRuleRequest): Promise<PricingRuleResponse> {
@@ -128,7 +128,7 @@ export async function setPricingRule(payload: PricingRuleRequest): Promise<Prici
 /**
  * Update an existing pricing rule for the current user using PUT.
  *
- * @param payload Contains the pricing rule type and new value.
+ * @param payload Contains the product identifier, pricing rule type and new value.
  * @returns The server’s representation of the pricing rule.
  */
 export async function updatePricingRule(payload: PricingRuleRequest): Promise<PricingRuleResponse> {

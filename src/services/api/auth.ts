@@ -19,7 +19,7 @@ import type {
 const MOBILE_USERNAME_REGEX = /^(\+98|0)?9\d{9}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-const OTP_CODE_REGEX = /^\d{4,8}$/;
+const OTP_CODE_REGEX = /^\d{6}$/;
 const BUSINESS_HANDLER_REGEX = /^[-a-zA-Z0-9_]+$/;
 const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
@@ -75,7 +75,7 @@ function validateMobile(value: string, label = "شماره موبایل"): void 
 function validateOtpCode(value: string): void {
     assertRequired(value, "کد تایید");
     if (!OTP_CODE_REGEX.test(normalizeOtpCode(value))) {
-        throw new Error("کد تایید باید فقط عددی باشد.");
+        throw new Error("کد تایید باید ۶ رقم باشد.");
     }
 }
 

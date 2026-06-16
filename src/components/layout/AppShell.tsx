@@ -8,10 +8,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
     LayoutDashboard,
     LogOut,
+    Maximize2,
     Menu,
+    Minimize2,
     PanelLeftClose,
     PanelLeftOpen,
-    Settings2,
     Share2,
     Store,
     Tags,
@@ -25,6 +26,7 @@ import { clearAuthTokens, getRefreshToken } from "@/lib/auth-storage";
 import { canViewPricingTools, canViewUserManagement, getBusinessLabel, getDisplayName, getNormalizedUserRole } from "@/lib/user-role";
 import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import { AmbientBackground } from "@/components/ui/ambient-background";
+import { FullPageLoader } from "@/components/ui/Loader";
 import LOGO from "@/../public/assets/images/logo.png";
 
 type NavItem = {
@@ -36,7 +38,7 @@ type NavItem = {
 const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "share-link", "stores", "pricing"]);
 
 function isAuthRoute(pathname: string): boolean {
-    return ["/login", "/register", "/pending"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+    return ["/login", "/register", "/otp", "/pending"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
 function isBusinessRegistrationRoute(pathname: string): boolean {
@@ -60,16 +62,40 @@ function getRoleLabel(role: ReturnType<typeof getNormalizedUserRole>): string {
     return "حساب کاربری";
 }
 
-function LoadingGate() {
+function resolveMediaUrl(src?: string | null): string {
+    if (!src) return "";
+    if (/^(blob:|data:|https?:\/\/)/i.test(src)) return src;
+
+    const apiOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+    if (src.startsWith("/")) return apiOrigin ? `${apiOrigin}${src}` : src;
+
+    return src;
+}
+
+function BusinessLogoMark({
+    src,
+    alt,
+    className = "h-11 w-11 rounded-2xl",
+}: {
+    src?: string | null;
+    alt: string;
+    className?: string;
+}) {
+    const logoSrc = resolveMediaUrl(src);
+
     return (
-        <div className="grid min-h-screen place-items-center bg-brand-base px-4 text-right">
-            <div className="w-full max-w-md rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-8 shadow-2xl backdrop-blur-xl">
-                <div className="mb-4 h-6 w-40 animate-pulse rounded bg-white/10" />
-                <div className="mb-2 h-4 w-full animate-pulse rounded bg-white/10" />
-                <div className="h-4 w-2/3 animate-pulse rounded bg-white/10" />
-            </div>
+        <div className={`relative shrink-0 overflow-hidden border border-silver-dark/20 bg-brand-base/60 ${className}`}>
+            {logoSrc ? (
+                <img src={logoSrc} alt={alt} className="h-full w-full object-cover" />
+            ) : (
+                <Image src={LOGO} alt="GOLDIMA Logo" fill className="object-contain p-1.5" priority />
+            )}
         </div>
     );
+}
+
+function LoadingGate() {
+    return <FullPageLoader />;
 }
 
 function NavLink({
@@ -113,6 +139,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [dashboardFullscreen, setDashboardFullscreen] = useState(false);
 
     const currentPathname = pathname ?? "/";
     const hideShell = isShellHidden(currentPathname);
@@ -120,6 +147,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const roleLabel = useMemo(() => getRoleLabel(role), [role]);
     const displayName = useMemo(() => getDisplayName(currentUser), [currentUser]);
     const businessLabel = useMemo(() => getBusinessLabel(currentUser), [currentUser]);
+    const businessLogo = currentUser?.business_logo ?? null;
     const showUserManagementTools = useMemo(() => canViewUserManagement(currentUser), [currentUser]);
     const showPricingTools = useMemo(() => canViewPricingTools(currentUser), [currentUser]);
     const hasRoleTools = showUserManagementTools || showPricingTools;
@@ -164,6 +192,19 @@ export default function AppShell({ children }: { children: ReactNode }) {
         }
     }, [currentUser, hideShell, isAllowedDashboardUser, isCurrentUserError, isLoadingCurrentUser, router]);
 
+    useEffect(() => {
+        if (!dashboardFullscreen) return;
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === "Escape") {
+                setDashboardFullscreen(false);
+            }
+        };
+
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [dashboardFullscreen]);
+
     const handleLogout = async () => {
         const refresh = getRefreshToken();
 
@@ -181,6 +222,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
             toast.error(message);
             router.replace("/login");
         }
+    };
+
+    const handleEnterFullscreen = () => {
+        setMobileMenuOpen(false);
+        setDashboardFullscreen(true);
     };
 
     if (hideShell) {
@@ -201,6 +247,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <div
                 className={[
                     "fixed inset-0 z-40 bg-black/55 backdrop-blur-sm transition-opacity duration-500 ease-out lg:hidden",
+                    dashboardFullscreen ? "hidden" : "",
                     mobileMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
                 ].join(" ")}
                 onClick={() => setMobileMenuOpen(false)}
@@ -209,6 +256,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <aside
                 className={[
                     "fixed right-0 top-0 z-50 h-screen w-72 transform-gpu border-l border-white/5 bg-brand-surface/95 shadow-2xl shadow-black/25 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform lg:duration-300",
+                    dashboardFullscreen ? "hidden" : "",
                     sidebarWidth,
                     mobileMenuOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0",
                 ].join(" ")}
@@ -245,9 +293,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                     <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
                         <div className={`rounded-3xl border border-silver-dark/15 bg-brand-base/45 p-4 ${sidebarCollapsed ? "lg:p-0 rounded-none border-0 bg-transparent" : ""}`}>
                             <div className={`flex items-center gap-3 ${sidebarCollapsed ? "lg:justify-center" : ""}`}>
-                                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-silver-dark/20 bg-silver-light/10 text-silver-light">
-                                    <Settings2 className="h-5 w-5" />
-                                </div>
+                                <BusinessLogoMark src={businessLogo} alt={businessLabel} className="h-12 w-12 rounded-2xl" />
 
                                 {!sidebarCollapsed && (
                                     <div>
@@ -341,6 +387,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <header
                 className={[
                     "fixed top-0 left-0 right-0 z-40 h-20 border-b border-white/5 bg-brand-surface/85 backdrop-blur-xl transition-all duration-300",
+                    dashboardFullscreen ? "hidden" : "",
                     headerOffset,
                 ].join(" ")}
             >
@@ -356,9 +403,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                         </button>
 
                         <div className="flex min-w-0 items-center gap-3">
-                            <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-base/60">
-                                <Image src={LOGO} alt="GOLDIMA Logo" fill className="object-contain p-1.5" priority />
-                            </div>
+                            <BusinessLogoMark src={businessLogo} alt={businessLabel} />
 
                             <div className="min-w-0 text-right">
                                 <div className="truncate text-base font-bold text-white">{displayName}</div>
@@ -367,17 +412,36 @@ export default function AppShell({ children }: { children: ReactNode }) {
                         </div>
                     </div>
 
-                    <div className="hidden min-w-0 items-center rounded-2xl border border-silver-dark/20 bg-brand-base/45 px-4 py-2.5 text-right sm:flex">
-                        <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-brand-text-primary">{businessLabel}</p>
-                            <p className="mt-1 truncate text-[11px] text-brand-text-secondary">حساب فعال</p>
-                        </div>
-                    </div>
+                    <button
+                        type="button"
+                        onClick={handleEnterFullscreen}
+                        className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-silver-dark/20 bg-brand-base/50 text-sm font-semibold text-brand-text-primary transition-all hover:border-silver-light/30 hover:bg-white/5 sm:w-auto sm:px-4"
+                        aria-label="نمایش داشبورد به صورت تمام‌صفحه"
+                        title="تمام‌صفحه"
+                    >
+                        <Maximize2 className="h-4 w-4 text-silver-light" />
+                        <span className="hidden sm:inline">تمام‌صفحه</span>
+                    </button>
                 </div>
             </header>
 
-            <main className={["relative z-10 pt-20 transition-[padding-right] duration-300", mainOffset].join(" ")}>
-                <div className="min-h-[calc(100vh-5rem)] w-full bg-brand-surface/25 p-0 backdrop-blur-[1px]">{children}</div>
+            {dashboardFullscreen && (
+                <button
+                    type="button"
+                    onClick={() => setDashboardFullscreen(false)}
+                    className="fixed left-4 top-4 z-50 inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-silver-dark/20 bg-brand-surface/90 px-4 text-sm font-semibold text-brand-text-primary shadow-2xl shadow-black/25 backdrop-blur-xl transition hover:border-silver-light/30 hover:bg-brand-card/90"
+                    aria-label="خروج از حالت تمام‌صفحه"
+                    title="خروج از تمام‌صفحه"
+                >
+                    <Minimize2 className="h-4 w-4 text-silver-light" />
+                    <span className="hidden sm:inline">خروج از تمام‌صفحه</span>
+                </button>
+            )}
+
+            <main className={dashboardFullscreen ? "relative z-10 min-h-screen" : ["relative z-10 pt-20 transition-[padding-right] duration-300", mainOffset].join(" ")}>
+                <div className={dashboardFullscreen ? "min-h-screen w-full bg-brand-surface/25 p-0 backdrop-blur-[1px]" : "min-h-[calc(100vh-5rem)] w-full bg-brand-surface/25 p-0 backdrop-blur-[1px]"}>
+                    {children}
+                </div>
             </main>
         </div>
     );

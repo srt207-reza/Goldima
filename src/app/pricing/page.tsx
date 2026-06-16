@@ -63,6 +63,7 @@ type PricingRuleDraft = {
 
 const PRODUCTS_STORAGE_KEY = "goldima.pricing.products.v1";
 const RULE_STORAGE_PREFIX = "goldima.pricing.rule.v1";
+const SELECTED_RULE_PRODUCT_STORAGE_PREFIX = "goldima.pricing.rule.selected-product.v1";
 
 const EMPTY_PRODUCT_DRAFT: ProductDraft = {
     name: "",
@@ -87,8 +88,12 @@ function parseMoney(value: string): number {
     return Number(value.replace(/,/g, ""));
 }
 
-function getRuleStorageKey(userId?: string | number): string {
-    return `${RULE_STORAGE_PREFIX}:${userId ?? "anonymous"}`;
+function getRuleStorageKey(userId?: string | number, productId?: string | number): string {
+    return `${RULE_STORAGE_PREFIX}:${userId ?? "anonymous"}:${productId ?? "global"}`;
+}
+
+function getSelectedRuleProductStorageKey(userId?: string | number): string {
+    return `${SELECTED_RULE_PRODUCT_STORAGE_PREFIX}:${userId ?? "anonymous"}`;
 }
 
 function createLocalId(): string {
@@ -108,14 +113,31 @@ function readStoredProducts(): PricingProduct[] {
     }
 }
 
-function readStoredRule(userId?: string | number): PricingRuleDraft {
-    if (typeof window === "undefined") return DEFAULT_RULE_DRAFT;
+function isPricingRuleType(value: unknown): value is PricingRuleType {
+    return value === "PERCENT" || value === "FIXED";
+}
+
+function readSelectedRuleProductId(userId?: string | number): string {
+    if (typeof window === "undefined") return "";
 
     try {
-        const raw = window.localStorage.getItem(getRuleStorageKey(userId));
+        return window.localStorage.getItem(getSelectedRuleProductStorageKey(userId)) ?? "";
+    } catch {
+        return "";
+    }
+}
+
+function readStoredRule(userId?: string | number, productId?: string | number): PricingRuleDraft {
+    if (typeof window === "undefined" || !productId) return DEFAULT_RULE_DRAFT;
+
+    try {
+        const raw = window.localStorage.getItem(getRuleStorageKey(userId, productId));
         if (!raw) return DEFAULT_RULE_DRAFT;
-        const parsed = JSON.parse(raw) as PricingRuleDraft;
-        return parsed?.type && typeof parsed.value === "string" ? parsed : DEFAULT_RULE_DRAFT;
+
+        const parsed = JSON.parse(raw) as Partial<PricingRuleDraft>;
+        return isPricingRuleType(parsed?.type) && typeof parsed.value === "string"
+            ? { type: parsed.type, value: parsed.value }
+            : DEFAULT_RULE_DRAFT;
     } catch {
         return DEFAULT_RULE_DRAFT;
     }
@@ -171,9 +193,18 @@ function DeniedState() {
     );
 }
 
-function ProductPricePanel({ product, rule }: { product: PricingProduct; rule: PricingRuleDraft }) {
+function ProductPricePanel({
+    product,
+    rule,
+    selectedRuleProductId,
+}: {
+    product: PricingProduct;
+    rule: PricingRuleDraft;
+    selectedRuleProductId: string;
+}) {
     const { data, isLoading, isError } = useProductPriceQuery(product.id);
-    const previewPrice = calculatePreviewPrice(product.basePrice, rule);
+    const shouldPreviewDraftRule = Boolean(product.id && String(product.id) === selectedRuleProductId);
+    const previewPrice = shouldPreviewDraftRule ? calculatePreviewPrice(product.basePrice, rule) : product.basePrice;
     const finalPrice = data?.final_price ?? previewPrice;
     const parentPrice = data?.parent_price ?? product.basePrice;
 
@@ -228,7 +259,8 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
 
     const [products, setProducts] = useState<PricingProduct[]>(() => readStoredProducts());
     const [productDraft, setProductDraft] = useState<ProductDraft>(EMPTY_PRODUCT_DRAFT);
-    const [pricingRuleDraft, setPricingRuleDraft] = useState<PricingRuleDraft>(() => readStoredRule(currentUser.id));
+    const [selectedRuleProductId, setSelectedRuleProductId] = useState<string>(() => readSelectedRuleProductId(currentUser.id));
+    const [pricingRuleDraft, setPricingRuleDraft] = useState<PricingRuleDraft>(() => readStoredRule(currentUser.id, readSelectedRuleProductId(currentUser.id)));
 
     const role = getNormalizedUserRole(currentUser);
     const isReference = role === "reference";
@@ -236,17 +268,37 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
     const isSavingProduct = createProductMutation.isPending || updateProductMutation.isPending || setBasePriceMutation.isPending || updateBasePriceMutation.isPending;
     const isSavingRule = setPricingRuleMutation.isPending || updatePricingRuleMutation.isPending;
 
+    const activeProducts = useMemo(() => products.filter((product) => product.is_active), [products]);
+    const ruleProducts = useMemo(() => activeProducts.filter((product) => typeof product.id === "number" && Number.isFinite(product.id)), [activeProducts]);
+    const averageBasePrice = useMemo(() => {
+        if (!activeProducts.length) return 0;
+        return activeProducts.reduce((sum, product) => sum + product.basePrice, 0) / activeProducts.length;
+    }, [activeProducts]);
+
     useEffect(() => {
         if (typeof window !== "undefined") {
             window.localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products));
         }
     }, [products]);
 
-    const activeProducts = useMemo(() => products.filter((product) => product.is_active), [products]);
-    const averageBasePrice = useMemo(() => {
-        if (!activeProducts.length) return 0;
-        return activeProducts.reduce((sum, product) => sum + product.basePrice, 0) / activeProducts.length;
-    }, [activeProducts]);
+    useEffect(() => {
+        if (!isWholesale || !ruleProducts.length) return;
+
+        const currentProductStillExists = ruleProducts.some((product) => String(product.id) === selectedRuleProductId);
+        if (!selectedRuleProductId || !currentProductStillExists) {
+            setSelectedRuleProductId(String(ruleProducts[0].id));
+        }
+    }, [isWholesale, ruleProducts, selectedRuleProductId]);
+
+    useEffect(() => {
+        if (!selectedRuleProductId) return;
+
+        setPricingRuleDraft(readStoredRule(currentUser.id, selectedRuleProductId));
+
+        if (typeof window !== "undefined") {
+            window.localStorage.setItem(getSelectedRuleProductStorageKey(currentUser.id), selectedRuleProductId);
+        }
+    }, [currentUser.id, selectedRuleProductId]);
 
     const handleProductChange = (event: ChangeEvent<HTMLInputElement>) => {
         const { name, value, type, checked } = event.target;
@@ -259,6 +311,10 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
     const handleRuleChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = event.target;
         setPricingRuleDraft((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleRuleProductChange = (event: ChangeEvent<HTMLSelectElement>) => {
+        setSelectedRuleProductId(event.target.value);
     };
 
     const resetProductDraft = () => setProductDraft(EMPTY_PRODUCT_DRAFT);
@@ -341,7 +397,15 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
             return;
         }
 
+        const productId = Number(selectedRuleProductId);
+
+        if (!Number.isInteger(productId) || productId <= 0) {
+            toast.error("برای ثبت قانون قیمت‌گذاری، یک کالا را انتخاب کنید");
+            return;
+        }
+
         const payload: PricingRuleRequest = {
+            product: productId,
             type: pricingRuleDraft.type,
             value,
         };
@@ -354,11 +418,15 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
             }
 
             if (typeof window !== "undefined") {
-                window.localStorage.setItem(getRuleStorageKey(currentUser.id), JSON.stringify(pricingRuleDraft));
+                window.localStorage.setItem(getRuleStorageKey(currentUser.id, productId), JSON.stringify(pricingRuleDraft));
+                window.localStorage.setItem(getSelectedRuleProductStorageKey(currentUser.id), String(productId));
             }
 
-            await queryClient.invalidateQueries({ queryKey: ["api", "products", "price"] });
-            toast.success("قانون قیمت‌گذاری ذخیره شد");
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["api", "products", "price"] }),
+                queryClient.invalidateQueries({ queryKey: ["api", "products", "price", productId] }),
+            ]);
+            toast.success("قانون قیمت‌گذاری این کالا ذخیره شد");
         } catch (error) {
             const message = error instanceof Error ? error.message : "ذخیره قانون قیمت‌گذاری با خطا مواجه شد";
             toast.error(message);
@@ -476,7 +544,27 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                     <h2 className="text-lg font-bold text-brand-text-primary">قانون قیمت‌گذاری شما</h2>
                                 </div>
 
-                                <div className="grid gap-4 md:grid-cols-2">
+                                <div className="grid gap-4 md:grid-cols-3">
+                                    <div>
+                                        <Label htmlFor="rule-product" className="mb-2 block">
+                                            کالا
+                                        </Label>
+                                        <select
+                                            id="rule-product"
+                                            value={selectedRuleProductId}
+                                            onChange={handleRuleProductChange}
+                                            disabled={!ruleProducts.length}
+                                            className="flex h-11 w-full rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            <option value="">انتخاب کالا</option>
+                                            {ruleProducts.map((product) => (
+                                                <option key={product.id} value={String(product.id)}>
+                                                    {product.name}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
                                     <div>
                                         <Label htmlFor="type" className="mb-2 block">
                                             نوع افزایش
@@ -501,7 +589,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                 </div>
 
                                 <div className="mt-5 flex justify-end">
-                                    <Button type="submit" disabled={isSavingRule} className="gap-2 cursor-pointer">
+                                    <Button type="submit" disabled={isSavingRule || !selectedRuleProductId} className="gap-2 cursor-pointer">
                                         {pricingRuleDraft.type === "PERCENT" ? <Percent className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                                         {isSavingRule ? "در حال ذخیره..." : "ذخیره قانون"}
                                     </Button>
@@ -583,7 +671,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                     className="grid gap-4 lg:grid-cols-3"
                 >
                     {activeProducts.map((product) => (
-                        <ProductPricePanel key={product.localId} product={product} rule={pricingRuleDraft} />
+                        <ProductPricePanel key={product.localId} product={product} rule={pricingRuleDraft} selectedRuleProductId={selectedRuleProductId} />
                     ))}
                 </motion.section>
 
@@ -591,7 +679,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                     <Card className="border border-emerald-300/20 bg-emerald-400/10 p-4 text-right text-sm leading-7 text-emerald-50">
                         <div className="flex items-center gap-2">
                             <CheckCircle2 className="h-4 w-4" />
-                            قانون فعلی روی محصولات فعال اعمال می‌شود.
+                            قانون قیمت‌گذاری به‌صورت جداگانه برای کالای انتخاب‌شده ذخیره می‌شود.
                         </div>
                     </Card>
                 ) : null}

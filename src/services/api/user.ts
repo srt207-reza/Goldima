@@ -3,6 +3,7 @@ import type {
     ApiResponse,
     ApiUser,
     BusinessProfile,
+    BusinessProfileUpdatePayload,
     CurrentUser,
     CurrentUserResponse,
     ManagedUser,
@@ -132,6 +133,27 @@ export async function getBusinessProfile(profileId: number): Promise<BusinessPro
     return data;
 }
 
+function hasFileValue(payload: BusinessProfileUpdatePayload): boolean {
+    return Object.values(payload).some((value) => typeof File !== "undefined" && value instanceof File);
+}
+
+function buildBusinessProfileFormData(payload: BusinessProfileUpdatePayload): FormData {
+    const formData = new FormData();
+
+    Object.entries(payload).forEach(([key, value]) => {
+        if (value === null || typeof value === "undefined") return;
+
+        if (typeof File !== "undefined" && value instanceof File) {
+            formData.append(key, value);
+            return;
+        }
+
+        formData.append(key, String(value));
+    });
+
+    return formData;
+}
+
 /**
  * Update a business profile record.
  *
@@ -140,11 +162,15 @@ export async function getBusinessProfile(profileId: number): Promise<BusinessPro
  */
 export async function updateBusinessProfile(
     profileId: number,
-    payload: Partial<Omit<BusinessProfile, "id" | "user" | "created_at" | "updated_at">>
+    payload: BusinessProfileUpdatePayload
 ): Promise<BusinessProfile> {
+    const requestPayload = hasFileValue(payload) ? buildBusinessProfileFormData(payload) : payload;
+    const headers = requestPayload instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined;
+
     const { data } = await axiosInstance.put<ApiResponse<BusinessProfile> | BusinessProfile>(
         `/api/users/profile/${profileId}/`,
-        payload
+        requestPayload,
+        { headers }
     );
 
     if ("data" in data) {

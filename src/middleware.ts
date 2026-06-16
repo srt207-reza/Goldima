@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const AUTH_PAGES = new Set(["/login", "/register"]);
-const PUBLIC_PAGES = new Set(["/login", "/register", "/pending"]);
+const AUTH_PAGES = new Set(["/login", "/register", "/otp"]);
+const PUBLIC_PAGES = new Set(["/login", "/register", "/otp", "/pending"]);
 const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "share-link", "stores", "pricing"]);
 
 function isSingleSegmentPath(pathname: string): boolean {

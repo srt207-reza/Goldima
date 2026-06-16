@@ -40,6 +40,12 @@ export type BusinessProfile = {
     is_active: boolean;
 };
 
+export type BusinessProfileUpdatePayload = Partial<
+    Omit<BusinessProfile, "id" | "user" | "created_at" | "updated_at" | "business_logo">
+> & {
+    business_logo?: string | File | null;
+};
+
 export type UsersQueryParams = {
     status?: UserStatus;
 };

@@ -1,19 +1,21 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
     BadgeCheck,
     Building2,
     CalendarDays,
+    ImagePlus,
     Mail,
     MapPin,
     Phone,
     Save,
     ShieldCheck,
     Sparkles,
+    Trash2,
     UserRound,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -43,6 +45,37 @@ const ROLE_LABELS: Record<NormalizedUserRole, string> = {
     retail: "تک‌فروش",
     unknown: "حساب کاربری",
 };
+
+const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
+
+function resolveMediaUrl(src?: string | null): string {
+    if (!src) return "";
+    if (/^(blob:|data:|https?:\/\/)/i.test(src)) return src;
+
+    const apiOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+    if (src.startsWith("/")) return apiOrigin ? `${apiOrigin}${src}` : src;
+
+    return src;
+}
+
+function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function getLogoValidationError(file: File): string | null {
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+        return "فرمت لوگو باید PNG، JPG، WEBP یا SVG باشد.";
+    }
+
+    if (file.size > MAX_LOGO_SIZE_BYTES) {
+        return "حجم لوگو نباید بیشتر از ۲ مگابایت باشد.";
+    }
+
+    return null;
+}
 
 function getInitialFormState(user: CurrentUser): ProfileFormState {
     return {
@@ -107,18 +140,33 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
     const updateBusinessProfileMutation = useUpdateBusinessProfileMutation();
     const [savedFormData, setSavedFormData] = useState<ProfileFormState>(() => getInitialFormState(currentUser));
     const [formData, setFormData] = useState<ProfileFormState>(() => getInitialFormState(currentUser));
+    const [logoFile, setLogoFile] = useState<File | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     useEffect(() => {
         const nextState = getInitialFormState(currentUser);
         setSavedFormData(nextState);
         setFormData(nextState);
+        setLogoFile(null);
     }, [currentUser]);
 
     const role = getNormalizedUserRole(currentUser);
     const displayName = getDisplayName(currentUser);
     const businessLabel = getBusinessLabel(currentUser);
     const isSaving = updateUserMutation.isPending || updateBusinessProfileMutation.isPending;
-    const hasFormChanges = useMemo(() => !areProfileStatesEqual(formData, savedFormData), [formData, savedFormData]);
+    const hasFormChanges = useMemo(() => !areProfileStatesEqual(formData, savedFormData) || Boolean(logoFile), [formData, savedFormData, logoFile]);
+    const existingLogoUrl = useMemo(() => resolveMediaUrl(currentUser.business_logo), [currentUser.business_logo]);
+    const selectedLogoPreviewUrl = useMemo(() => {
+        if (!logoFile) return "";
+        return URL.createObjectURL(logoFile);
+    }, [logoFile]);
+    const logoPreviewUrl = selectedLogoPreviewUrl || existingLogoUrl;
+
+    useEffect(() => {
+        return () => {
+            if (selectedLogoPreviewUrl) URL.revokeObjectURL(selectedLogoPreviewUrl);
+        };
+    }, [selectedLogoPreviewUrl]);
 
     const completion = useMemo(() => {
         const fields = Object.values(formData);
@@ -129,6 +177,21 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
     const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = event.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleLogoInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0] ?? null;
+        event.target.value = "";
+
+        if (!file) return;
+
+        const validationError = getLogoValidationError(file);
+        if (validationError) {
+            toast.error(validationError);
+            return;
+        }
+
+        setLogoFile(file);
     };
 
     const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -156,12 +219,13 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                     business_handler: formData.business_handler.trim() || null,
                     address: formData.address.trim(),
                     telephone: formData.telephone.trim(),
-                    business_logo: currentUser.business_logo,
+                    business_logo: logoFile ?? currentUser.business_logo,
                     is_active: currentUser.business_profile_is_active ?? true,
                 },
             });
 
             setSavedFormData(formData);
+            setLogoFile(null);
             await queryClient.invalidateQueries({ queryKey: ["api", "users", "me"] });
             toast.success("پروفایل با موفقیت ذخیره شد");
         } catch (error) {
@@ -184,8 +248,19 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                             <Sparkles className="h-4 w-4" />
                             پروفایل کاربری
                         </div>
-                        <h1 className="mt-4 text-2xl font-bold text-brand-text-primary sm:text-3xl">{displayName}</h1>
-                        <p className="mt-3 max-w-3xl leading-8 text-brand-text-secondary">{businessLabel}</p>
+                        <div className="mt-4 flex items-center gap-4">
+                            <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-base/60 text-silver-light">
+                                {logoPreviewUrl ? (
+                                    <img src={logoPreviewUrl} alt={businessLabel} className="h-full w-full object-cover" />
+                                ) : (
+                                    <Building2 className="h-7 w-7" />
+                                )}
+                            </div>
+                            <div className="min-w-0">
+                                <h1 className="truncate text-2xl font-bold text-brand-text-primary sm:text-3xl">{displayName}</h1>
+                                <p className="mt-2 max-w-3xl leading-8 text-brand-text-secondary">{businessLabel}</p>
+                            </div>
+                        </div>
                     </div>
 
                     <div className="min-w-56 rounded-lg border border-white/10 bg-brand-base/45 p-4">
@@ -270,6 +345,49 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                     </div>
 
                     <div className="space-y-4">
+                        <div>
+                            <Label className="mb-2 block">لوگوی کسب‌وکار</Label>
+                            <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoInputChange} />
+                            <div className="rounded-2xl border border-dashed border-silver-dark/25 bg-brand-base/40 p-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-surface/70 text-silver-light">
+                                        {logoPreviewUrl ? (
+                                            <img src={logoPreviewUrl} alt={businessLabel} className="h-full w-full object-cover" />
+                                        ) : (
+                                            <ImagePlus className="h-7 w-7" />
+                                        )}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <p className="truncate text-sm font-semibold text-brand-text-primary">
+                                            {logoFile ? logoFile.name : currentUser.business_logo ? "لوگوی فعلی کسب‌وکار" : "لوگویی ثبت نشده است"}
+                                        </p>
+                                        <p className="mt-1 text-xs leading-6 text-brand-text-secondary">
+                                            {logoFile ? formatFileSize(logoFile.size) : "PNG، JPG، WEBP یا SVG تا ۲ مگابایت"}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => fileInputRef.current?.click()}
+                                        className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-silver-dark/20 bg-white/[0.03] px-3 text-sm font-medium text-brand-text-primary transition hover:bg-white/[0.07]"
+                                    >
+                                        <ImagePlus className="h-4 w-4" />
+                                        انتخاب لوگو
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setLogoFile(null)}
+                                        disabled={!logoFile}
+                                        className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-300/20 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-400/10 disabled:cursor-not-allowed disabled:opacity-45"
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        حذف انتخاب
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                         <div>
                             <Label htmlFor="business_name" className="mb-2 block">
                                 نام شرکت

@@ -17,6 +17,7 @@ import { ShineBorder } from "@/components/ui/shine-border";
 import { usePhoneRegisterMutation, useSendPhoneOtpMutation } from "@/hooks/api";
 import { EMAIL_REGEX, ISO_DATE_REGEX, MOBILE_USERNAME_REGEX } from "@/types/api/auth";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
+import { clearRegisterOtpSession, readRegisterOtpSession } from "@/lib/otp-session";
 import { setAuthTokens } from "@/lib/auth-storage";
 import { normalizeDigits, normalizeMobileUsername } from "@/services/api/auth";
 import type { AuthBusinessProfile } from "@/types/api/auth";
@@ -25,7 +26,6 @@ type Step = 1 | 2;
 
 type RegisterFormState = {
     username: string;
-    code: string;
     first_name: string;
     last_name: string;
     email: string;
@@ -39,7 +39,6 @@ type RegisterFormState = {
 
 const initialFormState: RegisterFormState = {
     username: "",
-    code: "",
     first_name: "",
     last_name: "",
     email: "",
@@ -58,7 +57,6 @@ function validateStepOne(formData: RegisterFormState): string | null {
     if (!formData.first_name.trim()) return "نام الزامی است.";
     if (!formData.last_name.trim()) return "نام خانوادگی الزامی است.";
     if (!MOBILE_USERNAME_REGEX.test(normalizeMobileUsername(formData.username))) return "شماره موبایل معتبر نیست.";
-    if (!/^\d{4,8}$/.test(normalizeDigits(formData.code.trim()))) return "کد تایید را به صورت عددی وارد کنید.";
     if (!EMAIL_REGEX.test(formData.email.trim())) return "ایمیل معتبر نیست.";
     if (!ISO_DATE_REGEX.test(normalizeDigits(formData.birth_date.trim()))) return "تاریخ تولد را با تقویم شمسی انتخاب کنید.";
 
@@ -100,6 +98,14 @@ function getPendingUrl(profile: AuthBusinessProfile): string {
     });
 
     return `/pending?${params.toString()}`;
+}
+
+function getPostAuthUrl(profile: AuthBusinessProfile): string {
+    const role = String(profile.user?.role ?? "").toUpperCase();
+    const status = String(profile.user.status ?? "").toUpperCase();
+
+    if (role === "MASTER" || status === "APPROVED") return "/";
+    return getPendingUrl(profile);
 }
 
 function StepPill({
@@ -180,7 +186,7 @@ export default function RegisterPage() {
     const [step, setStep] = useState<Step>(1);
     const [formData, setFormData] = useState<RegisterFormState>(initialFormState);
     const [parentBusinessHandler, setParentBusinessHandler] = useState(DEFAULT_PARENT_BUSINESS_HANDLER);
-    const [otpSent, setOtpSent] = useState(false);
+    const [verifiedOtpCode, setVerifiedOtpCode] = useState("");
     const [isDraggingLogo, setIsDraggingLogo] = useState(false);
     const submitLockRef = useRef(false);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -200,14 +206,31 @@ export default function RegisterPage() {
         const params = new URLSearchParams(window.location.search);
         const handlerFromQuery = normalizeBusinessPathSegment(params.get("business_handler") || DEFAULT_PARENT_BUSINESS_HANDLER);
         const usernameFromQuery = normalizeMobileUsername(params.get("username") || "");
-        const otpHasBeenSent = params.get("otp_sent") === "1";
+        const otpReady = params.get("otp_ready") === "1";
 
         setParentBusinessHandler(handlerFromQuery || DEFAULT_PARENT_BUSINESS_HANDLER);
-        setOtpSent(otpHasBeenSent);
         setFormData((prev) => ({
             ...prev,
             username: usernameFromQuery || prev.username,
         }));
+
+        if (usernameFromQuery && otpReady) {
+            const session = readRegisterOtpSession({
+                username: usernameFromQuery,
+                business_handler: handlerFromQuery || DEFAULT_PARENT_BUSINESS_HANDLER,
+            });
+
+            if (session) {
+                setVerifiedOtpCode(session.code);
+                return;
+            }
+
+            toast.error("کد تایید معتبر نیست");
+            params.delete("username");
+            params.delete("otp_ready");
+            router.replace(`/register?${params.toString()}`, { scroll: false });
+            return;
+        }
 
         const shouldNormalizeHandler = handlerFromQuery && handlerFromQuery !== params.get("business_handler");
         const shouldAddDefaultHandler = !params.get("business_handler");
@@ -218,27 +241,23 @@ export default function RegisterPage() {
         }
     }, [router]);
 
-    const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
-    const handleSendOtp = async () => {
+    const handleStartOtp = async (event?: FormEvent) => {
+        event?.preventDefault();
+
         try {
             const response = await sendOtpMutation.mutateAsync({ phone_number: formData.username });
-            setOtpSent(true);
-
-            if (response.is_registered) {
-                toast.success("این شماره قبلاً ثبت‌نام شده است. کد تایید برای ورود ارسال شد.");
-                const params = new URLSearchParams({
-                    username: normalizeMobileUsername(formData.username),
-                    otp_sent: "1",
-                    business_handler: parentBusinessHandler,
-                });
-                router.replace(`/login?${params.toString()}`);
-                return;
-            }
+            const params = new URLSearchParams({
+                username: normalizeMobileUsername(formData.username),
+                business_handler: parentBusinessHandler,
+                flow: response.is_registered ? "login" : "register",
+            });
 
             toast.success("کد تایید ارسال شد");
+            router.replace(`/otp?${params.toString()}`);
         } catch (error) {
             const message = error instanceof Error ? error.message : "ارسال کد تایید با خطا مواجه شد";
             toast.error(message);
@@ -282,11 +301,6 @@ export default function RegisterPage() {
             return;
         }
 
-        if (!otpSent) {
-            toast.error("قبل از ثبت‌نام، کد تایید را برای شماره موبایل دریافت کنید.");
-            return;
-        }
-
         setStep(2);
     };
 
@@ -302,9 +316,7 @@ export default function RegisterPage() {
             return;
         }
 
-        if (submitLockRef.current || registerMutation.isPending) {
-            return;
-        }
+        if (submitLockRef.current || registerMutation.isPending) return;
 
         const stepOneError = validateStepOne(formData);
         if (stepOneError) {
@@ -324,7 +336,7 @@ export default function RegisterPage() {
         try {
             const response = await registerMutation.mutateAsync({
                 username: formData.username.trim(),
-                code: normalizeDigits(formData.code.trim()),
+                code: verifiedOtpCode,
                 first_name: formData.first_name.trim(),
                 last_name: formData.last_name.trim(),
                 email: formData.email.trim(),
@@ -337,9 +349,10 @@ export default function RegisterPage() {
                 parent_business_handler: parentBusinessHandler || undefined,
             });
 
+            clearRegisterOtpSession();
             setAuthTokens({ access: response.access, refresh: response.refresh });
             toast.success("ثبت‌نام با موفقیت انجام شد");
-            router.replace(getPendingUrl(response.user_profile));
+            router.replace(getPostAuthUrl(response.user_profile));
         } catch (error) {
             const message = error instanceof Error ? error.message : "ثبت‌نام با خطا مواجه شد";
             toast.error(message);
@@ -348,132 +361,132 @@ export default function RegisterPage() {
         }
     };
 
+    if (!verifiedOtpCode) {
+        return (
+            <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-base px-4 py-8">
+                <AmbientBackground dense />
+                <div className="absolute right-1/4 top-0 h-96 w-96 rounded-full bg-silver-light/5 blur-3xl animate-pulse" />
+                <div className="absolute bottom-0 left-1/4 h-96 w-96 rounded-full bg-silver-metallic/5 blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
+
+                <Card className="group relative w-full max-w-md overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-8 text-right shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-silver-glow">
+                    <ShineBorder className="opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
+                    <div className="mb-8 text-center">
+                        <h1 className="text-4xl font-bold tracking-wider">
+                            <span className="bg-gradient-to-l from-silver-light via-silver-metallic to-silver-light bg-clip-text text-transparent animate-pulse">GOLDIMA</span>
+                        </h1>
+                        <p className="mt-3 text-brand-text-secondary">ثبت‌نام</p>
+                    </div>
+
+                    <form onSubmit={handleStartOtp} className="space-y-5">
+                        <div>
+                            <Label htmlFor="username" className="mb-2 block text-right text-brand-text-primary">
+                                شماره موبایل
+                            </Label>
+                            <Input
+                                id="username"
+                                name="username"
+                                type="tel"
+                                inputMode="numeric"
+                                autoComplete="tel"
+                                required
+                                value={formData.username}
+                                onChange={handleChange}
+                                placeholder="09123456789"
+                                dir="ltr"
+                                className="transition-all duration-300 focus:scale-[1.02]"
+                            />
+                        </div>
+
+                        <Button type="submit" className="w-full cursor-pointer !mt-8" disabled={sendOtpMutation.isPending}>
+                            {sendOtpMutation.isPending ? "در حال ارسال..." : "دریافت کد تایید"}
+                        </Button>
+                    </form>
+
+                    <div className="mt-6 text-right text-sm text-brand-text-secondary">
+                        <Link href={`/login?business_handler=${encodeURIComponent(parentBusinessHandler)}`} className="cursor-pointer font-semibold text-white transition-colors hover:text-silver-light">
+                            ورود به حساب
+                        </Link>
+                    </div>
+                </Card>
+            </div>
+        );
+    }
+
     return (
         <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-base px-4 py-8">
             <AmbientBackground dense />
-            <div className="absolute top-0 right-1/4 h-96 w-96 rounded-full bg-silver-light/5 blur-3xl animate-pulse"></div>
-            <div className="absolute bottom-0 left-1/4 h-96 w-96 rounded-full bg-silver-metallic/5 blur-3xl animate-pulse" style={{ animationDelay: "1s" }}></div>
+            <div className="absolute right-1/4 top-0 h-96 w-96 rounded-full bg-silver-light/5 blur-3xl animate-pulse" />
+            <div className="absolute bottom-0 left-1/4 h-96 w-96 rounded-full bg-silver-metallic/5 blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
 
-            <Card className="relative w-full max-w-3xl overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-silver-glow sm:p-8 group">
+            <Card className="group relative w-full max-w-3xl overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-6 shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-1 hover:shadow-silver-glow sm:p-8">
                 <ShineBorder className="opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
-                <div className="absolute top-0 left-0 right-0 h-1 bg-linear-to-r from-transparent via-silver-light to-transparent opacity-0 transition-opacity duration-700 hover:opacity-100"></div>
+                <div className="absolute left-0 right-0 top-0 h-1 bg-linear-to-r from-transparent via-silver-light to-transparent opacity-0 transition-opacity duration-700 hover:opacity-100" />
 
                 <div className="mb-8 text-center">
-                    <h1 className="mb-2 text-3xl font-bold tracking-wider text-center sm:text-4xl">
+                    <h1 className="text-center text-3xl font-bold tracking-wider sm:text-4xl">
                         <span className="bg-linear-to-l from-silver-light via-silver-metallic to-silver-light bg-clip-text text-transparent animate-pulse">GOLDIMA</span>
                     </h1>
-                    <p className="text-center leading-relaxed text-brand-text-secondary">ثبت‌نام با شماره موبایل و کد تایید</p>
                 </div>
 
                 <div className="mb-6 flex items-center justify-between gap-3 rounded-2xl border border-silver-dark/20 bg-brand-base/40 px-4 py-3">
-                    <StepPill active={step === 1} label="اطلاعات فردی و تایید موبایل" index={1} onClick={step === 2 ? () => setStep(1) : undefined} />
+                    <StepPill active={step === 1} label="اطلاعات فردی" index={1} onClick={step === 2 ? () => setStep(1) : undefined} />
                     <div className="h-px flex-1 bg-linear-to-l from-silver-dark/40 to-transparent" />
                     <StepPill active={step === 2} label="اطلاعات کسب‌وکار" index={2} />
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     {step === 1 ? (
-                        <>
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                <div className="group/input">
-                                    <Label htmlFor="first_name" className="mb-2 block text-right text-brand-text-primary">نام</Label>
-                                    <Input id="first_name" name="first_name" type="text" required value={formData.first_name} onChange={handleChange} placeholder="علی" className="text-right transition-all duration-300 focus:scale-[1.02]" />
-                                </div>
-
-                                <div className="group/input">
-                                    <Label htmlFor="last_name" className="mb-2 block text-right text-brand-text-primary">نام خانوادگی</Label>
-                                    <Input id="last_name" name="last_name" type="text" required value={formData.last_name} onChange={handleChange} placeholder="احمدی" className="text-right transition-all duration-300 focus:scale-[1.02]" />
-                                </div>
-
-                                <div className="group/input">
-                                    <Label htmlFor="username" className="mb-2 block text-right text-brand-text-primary">شماره موبایل</Label>
-                                    <Input id="username" name="username" type="tel" inputMode="numeric" autoComplete="tel" required value={formData.username} onChange={handleChange} placeholder="09123456789" dir="ltr" className="transition-all duration-300 focus:scale-[1.02]" />
-                                </div>
-
-                                <div className="group/input">
-                                    <div className="mb-2 flex items-center justify-between gap-3">
-                                        <Label htmlFor="code" className="block text-right text-brand-text-primary">کد تایید</Label>
-
-                                        <button
-                                            type="button"
-                                            onClick={handleSendOtp}
-                                            disabled={sendOtpMutation.isPending}
-                                            className="cursor-pointer text-xs font-semibold text-silver-light/50 transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {sendOtpMutation.isPending ? "در حال ارسال..." : otpSent ? "ارسال مجدد کد" : "ارسال کد تایید"}
-                                        </button>
-                                    </div>
-                                    <Input id="code" name="code" type="text" inputMode="numeric" autoComplete="one-time-code" required value={formData.code} onChange={handleChange} placeholder="4829" dir="ltr" className="transition-all duration-300 focus:scale-[1.02]" />
-                                    {/* <p className="mt-2 text-right text-xs leading-6 text-brand-text-secondary">
-                                        اگر از صفحه ورود آمده‌اید، کد قبلاً برای همین شماره ارسال شده است.
-                                    </p> */}
-                                </div>
-
-                                <div className="group/input">
-                                    <Label htmlFor="birth_date" className="mb-2 block text-right text-brand-text-primary">تاریخ تولد</Label>
-                                    <JalaliBirthDatePicker value={formData.birth_date} onChange={(birth_date) => setFormData((prev) => ({ ...prev, birth_date }))} />
-                                </div>
-
-                                <div className="group/input">
-                                    <Label htmlFor="email" className="mb-2 block text-right text-brand-text-primary">ایمیل</Label>
-                                    <Input id="email" name="email" type="email" required value={formData.email} onChange={handleChange} placeholder="name@example.com" dir="ltr" className="transition-all duration-300 focus:scale-[1.02]" />
-                                </div>
-                            </div>
-                        </>
-                    ) : (
-                        <>
-                            {/* <div className="group/input">
-                                <Label htmlFor="business_name" className="mb-2 block text-right text-brand-text-primary">نام کسب‌وکار</Label>
-                                <Input id="business_name" name="business_name" type="text" required value={formData.business_name} onChange={handleChange} placeholder="dornica" className="text-right transition-all duration-300 focus:scale-[1.02]" />
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            <div className="group/input">
+                                <Label htmlFor="username" className="mb-2 block text-right text-brand-text-primary">شماره موبایل</Label>
+                                <Input id="username" name="username" type="tel" value={formData.username} disabled dir="ltr" className="transition-all duration-300 disabled:opacity-70" />
                             </div>
 
                             <div className="group/input">
-                                <Label htmlFor="business_handler" className="mb-2 block text-right text-brand-text-primary">شناسه لینک اختصاصی</Label>
-                                <Input id="business_handler" name="business_handler" type="text" required value={formData.business_handler} onChange={handleChange} placeholder="dornica" dir="ltr" className="transition-all duration-300 focus:scale-[1.02]" />
-                                <p className="mt-2 text-right text-xs leading-6 text-brand-text-secondary">فقط حروف انگلیسی، عدد، خط تیره و آندرلاین مجاز است.</p>
-                            </div> */}
+                                <Label htmlFor="first_name" className="mb-2 block text-right text-brand-text-primary">نام</Label>
+                                <Input id="first_name" name="first_name" type="text" required value={formData.first_name} onChange={handleChange} placeholder="علی" className="text-right transition-all duration-300 focus:scale-[1.02]" />
+                            </div>
 
+                            <div className="group/input">
+                                <Label htmlFor="last_name" className="mb-2 block text-right text-brand-text-primary">نام خانوادگی</Label>
+                                <Input id="last_name" name="last_name" type="text" required value={formData.last_name} onChange={handleChange} placeholder="احمدی" className="text-right transition-all duration-300 focus:scale-[1.02]" />
+                            </div>
+
+                            <div className="group/input">
+                                <Label htmlFor="birth_date" className="mb-2 block text-right text-brand-text-primary">تاریخ تولد</Label>
+                                <JalaliBirthDatePicker value={formData.birth_date} onChange={(birth_date) => setFormData((prev) => ({ ...prev, birth_date }))} />
+                            </div>
+
+                            <div className="group/input md:col-span-2">
+                                <Label htmlFor="email" className="mb-2 block text-right text-brand-text-primary">ایمیل</Label>
+                                <Input id="email" name="email" type="email" required value={formData.email} onChange={handleChange} placeholder="name@example.com" dir="ltr" className="transition-all duration-300 focus:scale-[1.02]" />
+                            </div>
+                        </div>
+                    ) : (
+                        <>
                             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                                 <div className="group/input">
-                                    <Label htmlFor="business_name" className="mb-2 block text-right text-brand-text-primary">
-                                        نام کسب‌وکار
-                                    </Label>
-                                    <Input
-                                        id="business_name"
-                                        name="business_name"
-                                        type="text"
-                                        required
-                                        value={formData.business_name}
-                                        onChange={handleChange}
-                                        placeholder="dornica"
-                                        className="text-right transition-all duration-300 focus:scale-[1.02]"
-                                    />
+                                    <Label htmlFor="business_name" className="mb-2 block text-right text-brand-text-primary">نام کسب‌وکار</Label>
+                                    <Input id="business_name" name="business_name" type="text" required value={formData.business_name} onChange={handleChange} placeholder="فروشگاه نمونه" className="text-right transition-all duration-300 focus:scale-[1.02]" />
                                 </div>
 
                                 <div className="group/input">
-                                    <Label htmlFor="business_handler" className="mb-2 block text-right text-brand-text-primary">
-                                        شناسه لینک اختصاصی
-                                    </Label>
-                                    <Input
-                                        id="business_handler"
-                                        name="business_handler"
-                                        type="text"
-                                        required
-                                        value={formData.business_handler}
-                                        onChange={handleChange}
-                                        placeholder="dornica"
-                                        dir="ltr"
-                                        className="transition-all duration-300 focus:scale-[1.02]"
-                                    />
-                                    {/* <p className="mt-2 text-right text-xs leading-6 text-brand-text-secondary">
-                                        فقط حروف انگلیسی، عدد، خط تیره و آندرلاین مجاز است.
-                                    </p> */}
+                                    <Label htmlFor="business_handler" className="mb-2 block text-right text-brand-text-primary">شناسه لینک اختصاصی</Label>
+                                    <Input id="business_handler" name="business_handler" type="text" required value={formData.business_handler} onChange={handleChange} placeholder="sample_shop" dir="ltr" className="transition-all duration-300 focus:scale-[1.02]" />
                                 </div>
                             </div>
 
                             <div className="group/input">
                                 <Label htmlFor="address" className="mb-2 block text-right text-brand-text-primary">آدرس</Label>
-                                <Input id="address" name="address" type="text" required value={formData.address} onChange={handleChange} placeholder="تهران، ..." className="text-right transition-all duration-300 focus:scale-[1.02]" />
+                                <textarea
+                                    id="address"
+                                    name="address"
+                                    required
+                                    value={formData.address}
+                                    onChange={handleChange}
+                                    placeholder="تهران، ..."
+                                    className="min-h-28 w-full resize-none rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-3 text-right text-sm text-brand-text-primary shadow-inner shadow-black/10 outline-none transition-all duration-300 placeholder:text-brand-text-secondary/70 hover:border-silver-dark/70 focus:border-silver-light/70 focus:bg-brand-surface/75 focus:ring-2 focus:ring-silver-light/25"
+                                />
                             </div>
 
                             <div className="group/input">
@@ -482,7 +495,7 @@ export default function RegisterPage() {
                             </div>
 
                             <div className="group/input">
-                                <Label className="mb-2 block text-right text-brand-text-primary">لوگوی کسب‌وکار (اختیاری)</Label>
+                                <Label className="mb-2 block text-right text-brand-text-primary">لوگوی کسب‌وکار</Label>
                                 <input ref={fileInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" className="hidden" onChange={handleLogoInputChange} />
                                 <div
                                     role="button"
@@ -505,14 +518,12 @@ export default function RegisterPage() {
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M20 16.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-1.5" />
                                         </svg>
                                     </div>
-                                    <p className="font-semibold text-brand-text-primary">فایل لوگو را انتخاب کنید یا اینجا رها کنید</p>
-                                    <p className="mt-2 text-xs leading-6 text-brand-text-secondary">PNG، JPG، WEBP یا SVG تا حداکثر ۲ مگابایت. این فیلد لینک نمی‌گیرد و با multipart/form-data ارسال می‌شود.</p>
+                                    <p className="font-semibold text-brand-text-primary">انتخاب لوگو</p>
+                                    <p className="mt-2 text-xs leading-6 text-brand-text-secondary">PNG، JPG، WEBP یا SVG تا ۲ مگابایت</p>
 
                                     {formData.business_logo ? (
                                         <div className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-silver-dark/20 bg-black/20 p-3 text-right">
-                                            {logoPreviewUrl ? (
-                                                <img src={logoPreviewUrl} alt="پیش‌نمایش لوگو" className="h-12 w-12 rounded-xl object-cover" />
-                                            ) : null}
+                                            {logoPreviewUrl ? <img src={logoPreviewUrl} alt="پیش‌نمایش لوگو" className="h-12 w-12 rounded-xl object-cover" /> : null}
                                             <div className="min-w-0 flex-1">
                                                 <p className="truncate text-sm font-semibold text-brand-text-primary">{formData.business_logo.name}</p>
                                                 <p className="mt-1 text-xs text-brand-text-secondary">{formatFileSize(formData.business_logo.size)}</p>
@@ -534,7 +545,7 @@ export default function RegisterPage() {
 
                             {parentBusinessHandler ? (
                                 <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm leading-7 text-emerald-100">
-                                    ثبت‌نام شما از طریق لینک معرف <span dir="ltr" className="font-semibold">{parentBusinessHandler}</span> انجام می‌شود.
+                                    معرف: <span dir="ltr" className="font-semibold">{parentBusinessHandler}</span>
                                 </div>
                             ) : null}
                         </>
@@ -547,20 +558,11 @@ export default function RegisterPage() {
                             </Button>
                         ) : null}
 
-                        <Button type="submit" className="w-full cursor-pointer relative overflow-hidden group/btn text-white" disabled={registerMutation.isPending || submitLockRef.current}>
+                        <Button type="submit" className="group/btn relative w-full cursor-pointer overflow-hidden text-white" disabled={registerMutation.isPending || submitLockRef.current}>
                             {registerMutation.isPending ? "در حال ثبت‌نام..." : step === 1 ? "مرحله بعد" : "ثبت‌نام"}
                         </Button>
                     </div>
                 </form>
-
-                <div className="mt-6 text-center text-sm text-brand-text-secondary">
-                    <p className="text-right leading-relaxed">
-                        قبلاً ثبت‌نام کرده‌اید؟{" "}
-                        <Link href={`/login?business_handler=${encodeURIComponent(parentBusinessHandler)}`} className="cursor-pointer font-semibold text-white transition-colors hover:text-silver-light">
-                            ورود به حساب
-                        </Link>
-                    </p>
-                </div>
             </Card>
         </div>
     );
