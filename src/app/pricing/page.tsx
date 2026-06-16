@@ -205,8 +205,8 @@ function ProductPricePanel({ product, rule }: { product: PricingProduct; rule: P
             {data?.levels?.length ? (
                 <div className="mt-4 space-y-2">
                     {data.levels.map((level, index) => (
-                        <div key={`${level.role}-${index}`} className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
-                            <span className="text-brand-text-secondary">{level.role}</span>
+                        <div key={`${level?.role}-${index}`} className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
+                            <span className="text-brand-text-secondary">{level?.role}</span>
                             <span className="font-medium text-brand-text-primary">{formatUsd(level.your_price)}</span>
                         </div>
                     ))}

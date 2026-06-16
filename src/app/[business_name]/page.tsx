@@ -7,6 +7,8 @@ import { Card } from "@/components/ui/card";
 import { AmbientBackground } from "@/components/ui/ambient-background";
 import { ShineBorder } from "@/components/ui/shine-border";
 import { buildBusinessUrl, normalizeBusinessPathSegment } from "@/lib/business-path";
+import Cookies from "js-cookie";
+import { ACCESS_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/lib/auth-storage";
 
 /**
  * Public business-handler page.
@@ -20,6 +22,12 @@ export default function BusinessRegistrationLandingPage() {
     const params = useParams<{ business_name: string }>();
     const businessHandler = useMemo(() => normalizeBusinessPathSegment(params.business_name), [params.business_name]);
     const businessUrl = buildBusinessUrl(businessHandler);
+
+    function clearAuthTokens(): void {
+        Cookies.remove(ACCESS_TOKEN_COOKIE, { path: "/" });
+        Cookies.remove(REFRESH_TOKEN_COOKIE, { path: "/" });
+        window.location.href = '/login'
+    }
 
     return (
         <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-brand-base px-4 py-10">
@@ -51,6 +59,7 @@ export default function BusinessRegistrationLandingPage() {
                     </Link>
                     <Link
                         href="/login"
+                        onClick={clearAuthTokens}
                         className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 px-6 py-3 font-medium text-brand-text-primary transition-all hover:bg-white/5"
                     >
                         ورود به حساب

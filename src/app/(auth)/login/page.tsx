@@ -48,7 +48,7 @@ function getPendingUrl(profile: AuthBusinessProfile): string {
 }
 
 function getPostAuthUrl(profile: AuthBusinessProfile): string {
-    const role = String(profile.user.role ?? "").toUpperCase();
+    const role = String(profile.user?.role ?? "").toUpperCase();
     const status = String(profile.user.status ?? "").toUpperCase();
 
     if (role === "MASTER" || status === "APPROVED") {
