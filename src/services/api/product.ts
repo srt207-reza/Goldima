@@ -1,14 +1,33 @@
 import { axiosInstance } from "@/lib/axios";
 import type {
     ApiProduct,
+    GetProductsResponse,
     PricingRuleRequest,
     PricingRuleResponse,
     ProductBasePriceRequest,
     ProductBasePriceResponse,
+    ProductPriceTreeDetail,
     ProductPriceOverrideRequest,
     ProductPriceOverrideResponse,
     ProductPriceResponse,
 } from "@/types/api/product";
+
+function normalizeProductsResponse(response: GetProductsResponse | ProductPriceTreeDetail[]): ProductPriceTreeDetail[] {
+    if (Array.isArray(response)) {
+        return response;
+    }
+
+    return Array.isArray(response.data) ? response.data : [];
+}
+
+/**
+ * Retrieve all products with the effective price tree for the current user.
+ * This is the pricing page's source of truth for the product list.
+ */
+export async function getProducts(): Promise<ProductPriceTreeDetail[]> {
+    const { data } = await axiosInstance.get<GetProductsResponse | ProductPriceTreeDetail[]>("/api/get_products/");
+    return normalizeProductsResponse(data);
+}
 
 /**
  * Create a new product. Only users with the MASTER role on the backend

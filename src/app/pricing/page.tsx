@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
@@ -28,7 +28,7 @@ import {
     useCreateProductMutation,
     useCurrentUserQuery,
     useDeleteProductMutation,
-    useProductPriceQuery,
+    useProductsQuery,
     useSetBasePriceMutation,
     useSetPricingRuleMutation,
     useUpdateBasePriceMutation,
@@ -36,21 +36,17 @@ import {
     useUpdateProductMutation,
 } from "@/hooks/api";
 import { canViewPricingTools, getNormalizedUserRole } from "@/lib/user-role";
-import type { ApiProduct, PricingRuleRequest, PricingRuleType } from "@/types/api/product";
+import type { PriceTreeLevel, PricingRuleRequest, PricingRuleType, ProductPriceTreeDetail } from "@/types/api/product";
 import type { CurrentUser } from "@/types/api/user";
 
-type PricingProduct = {
-    localId: string;
-    id?: number;
-    name: string;
+type PricingProduct = ProductPriceTreeDetail & {
     basePrice: number;
-    is_active: boolean;
-    created_at?: string;
-    updated_at?: string;
+    parentPrice: number;
+    finalPrice: number;
 };
 
 type ProductDraft = {
-    localId?: string;
+    id?: number;
     name: string;
     basePrice: string;
     is_active: boolean;
@@ -61,9 +57,10 @@ type PricingRuleDraft = {
     value: string;
 };
 
-const PRODUCTS_STORAGE_KEY = "goldima.pricing.products.v1";
-const RULE_STORAGE_PREFIX = "goldima.pricing.rule.v1";
-const SELECTED_RULE_PRODUCT_STORAGE_PREFIX = "goldima.pricing.rule.selected-product.v1";
+type PricingRuleDraftState = {
+    productId: string;
+    draft: PricingRuleDraft;
+};
 
 const EMPTY_PRODUCT_DRAFT: ProductDraft = {
     name: "",
@@ -88,59 +85,62 @@ function parseMoney(value: string): number {
     return Number(value.replace(/,/g, ""));
 }
 
-function getRuleStorageKey(userId?: string | number, productId?: string | number): string {
-    return `${RULE_STORAGE_PREFIX}:${userId ?? "anonymous"}:${productId ?? "global"}`;
-}
-
-function getSelectedRuleProductStorageKey(userId?: string | number): string {
-    return `${SELECTED_RULE_PRODUCT_STORAGE_PREFIX}:${userId ?? "anonymous"}`;
-}
-
-function createLocalId(): string {
-    return `product-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function readStoredProducts(): PricingProduct[] {
-    if (typeof window === "undefined") return [];
-
-    try {
-        const raw = window.localStorage.getItem(PRODUCTS_STORAGE_KEY);
-        if (!raw) return [];
-        const parsed = JSON.parse(raw) as PricingProduct[];
-        return Array.isArray(parsed) ? parsed.filter((item) => item.name) : [];
-    } catch {
-        return [];
-    }
-}
-
 function isPricingRuleType(value: unknown): value is PricingRuleType {
     return value === "PERCENT" || value === "FIXED";
 }
 
-function readSelectedRuleProductId(userId?: string | number): string {
-    if (typeof window === "undefined") return "";
-
-    try {
-        return window.localStorage.getItem(getSelectedRuleProductStorageKey(userId)) ?? "";
-    } catch {
-        return "";
-    }
+function toFiniteNumber(value: unknown, fallback = 0): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
-function readStoredRule(userId?: string | number, productId?: string | number): PricingRuleDraft {
-    if (typeof window === "undefined" || !productId) return DEFAULT_RULE_DRAFT;
+function findMasterLevel(levels: PriceTreeLevel[]): PriceTreeLevel | undefined {
+    return levels.find((level) => typeof level.role === "string" && level.role.toUpperCase() === "MASTER");
+}
 
-    try {
-        const raw = window.localStorage.getItem(getRuleStorageKey(userId, productId));
-        if (!raw) return DEFAULT_RULE_DRAFT;
+function getProductLevels(product: ProductPriceTreeDetail): PriceTreeLevel[] {
+    return Array.isArray(product.levels) ? product.levels : [];
+}
 
-        const parsed = JSON.parse(raw) as Partial<PricingRuleDraft>;
-        return isPricingRuleType(parsed?.type) && typeof parsed.value === "string"
-            ? { type: parsed.type, value: parsed.value }
-            : DEFAULT_RULE_DRAFT;
-    } catch {
-        return DEFAULT_RULE_DRAFT;
-    }
+function getBasePrice(product: ProductPriceTreeDetail): number {
+    const levels = getProductLevels(product);
+    const masterLevel = findMasterLevel(levels);
+    const firstLevel = levels[0];
+    return toFiniteNumber(masterLevel?.your_price, toFiniteNumber(firstLevel?.your_price, product.final_price));
+}
+
+function getParentPrice(product: ProductPriceTreeDetail, basePrice: number): number {
+    const levels = getProductLevels(product);
+    const lastLevel = levels[levels.length - 1];
+    return toFiniteNumber(lastLevel?.parent_price, basePrice);
+}
+
+function normalizePricingProduct(product: ProductPriceTreeDetail): PricingProduct {
+    const basePrice = getBasePrice(product);
+    const parentPrice = getParentPrice(product, basePrice);
+
+    return {
+        ...product,
+        levels: getProductLevels(product),
+        basePrice,
+        parentPrice,
+        finalPrice: toFiniteNumber(product.final_price, parentPrice),
+    };
+}
+
+function getUserPriceLevel(user: CurrentUser, product?: PricingProduct): PriceTreeLevel | undefined {
+    if (!product) return undefined;
+
+    const userId = String(user.id);
+    return product.levels.find((level) => String(level.user_id) === userId);
+}
+
+function getRuleDraftFromProduct(user: CurrentUser, product?: PricingProduct): PricingRuleDraft {
+    const level = getUserPriceLevel(user, product);
+
+    return {
+        type: isPricingRuleType(level?.rule_type) ? level.rule_type : DEFAULT_RULE_DRAFT.type,
+        value: typeof level?.rule_value === "number" && Number.isFinite(level.rule_value) ? String(level.rule_value) : "",
+    };
 }
 
 function calculatePreviewPrice(basePrice: number, rule: PricingRuleDraft): number {
@@ -202,11 +202,10 @@ function ProductPricePanel({
     rule: PricingRuleDraft;
     selectedRuleProductId: string;
 }) {
-    const { data, isLoading, isError } = useProductPriceQuery(product.id);
     const shouldPreviewDraftRule = Boolean(product.id && String(product.id) === selectedRuleProductId);
-    const previewPrice = shouldPreviewDraftRule ? calculatePreviewPrice(product.basePrice, rule) : product.basePrice;
-    const finalPrice = data?.final_price ?? previewPrice;
-    const parentPrice = data?.parent_price ?? product.basePrice;
+    const previewPrice = shouldPreviewDraftRule ? calculatePreviewPrice(product.parentPrice, rule) : product.finalPrice;
+    const finalPrice = shouldPreviewDraftRule ? previewPrice : product.finalPrice;
+    const parentPrice = product.parentPrice;
 
     return (
         <MagicCard className="rounded-2xl bg-brand-base/45 p-4" withBorderBeam={false}>
@@ -227,15 +226,13 @@ function ProductPricePanel({
                 </div>
                 <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-3">
                     <p className="text-xs text-emerald-100">قیمت نهایی</p>
-                    <p className="mt-2 font-bold text-emerald-100">{isLoading ? "..." : formatUsd(finalPrice)}</p>
+                    <p className="mt-2 font-bold text-emerald-100">{formatUsd(finalPrice)}</p>
                 </div>
             </div>
 
-            {isError ? <p className="mt-3 text-xs text-amber-200">قیمت زنجیره‌ای از API دریافت نشد.</p> : null}
-
-            {data?.levels?.length ? (
+            {product.levels?.length ? (
                 <div className="mt-4 space-y-2">
-                    {data.levels.map((level, index) => (
+                    {product.levels.map((level, index) => (
                         <div key={`${level?.role}-${index}`} className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
                             <span className="text-brand-text-secondary">{level?.role}</span>
                             <span className="font-medium text-brand-text-primary">{formatUsd(level.your_price)}</span>
@@ -256,11 +253,11 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
     const updateBasePriceMutation = useUpdateBasePriceMutation();
     const setPricingRuleMutation = useSetPricingRuleMutation();
     const updatePricingRuleMutation = useUpdatePricingRuleMutation();
+    const { data: apiProducts = [], isLoading: isProductsLoading, isError: isProductsError } = useProductsQuery();
 
-    const [products, setProducts] = useState<PricingProduct[]>(() => readStoredProducts());
     const [productDraft, setProductDraft] = useState<ProductDraft>(EMPTY_PRODUCT_DRAFT);
-    const [selectedRuleProductId, setSelectedRuleProductId] = useState<string>(() => readSelectedRuleProductId(currentUser.id));
-    const [pricingRuleDraft, setPricingRuleDraft] = useState<PricingRuleDraft>(() => readStoredRule(currentUser.id, readSelectedRuleProductId(currentUser.id)));
+    const [selectedRuleProductId, setSelectedRuleProductId] = useState<string>("");
+    const [pricingRuleDraftState, setPricingRuleDraftState] = useState<PricingRuleDraftState | null>(null);
 
     const role = getNormalizedUserRole(currentUser);
     const isReference = role === "reference";
@@ -268,37 +265,26 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
     const isSavingProduct = createProductMutation.isPending || updateProductMutation.isPending || setBasePriceMutation.isPending || updateBasePriceMutation.isPending;
     const isSavingRule = setPricingRuleMutation.isPending || updatePricingRuleMutation.isPending;
 
+    const products = useMemo(() => apiProducts.map(normalizePricingProduct), [apiProducts]);
     const activeProducts = useMemo(() => products.filter((product) => product.is_active), [products]);
     const ruleProducts = useMemo(() => activeProducts.filter((product) => typeof product.id === "number" && Number.isFinite(product.id)), [activeProducts]);
     const averageBasePrice = useMemo(() => {
         if (!activeProducts.length) return 0;
         return activeProducts.reduce((sum, product) => sum + product.basePrice, 0) / activeProducts.length;
     }, [activeProducts]);
-
-    useEffect(() => {
-        if (typeof window !== "undefined") {
-            window.localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products));
-        }
-    }, [products]);
-
-    useEffect(() => {
-        if (!isWholesale || !ruleProducts.length) return;
-
-        const currentProductStillExists = ruleProducts.some((product) => String(product.id) === selectedRuleProductId);
-        if (!selectedRuleProductId || !currentProductStillExists) {
-            setSelectedRuleProductId(String(ruleProducts[0].id));
-        }
+    const selectedRuleProduct = useMemo(() => {
+        if (!isWholesale || !ruleProducts.length) return undefined;
+        return ruleProducts.find((product) => String(product.id) === selectedRuleProductId) ?? ruleProducts[0];
     }, [isWholesale, ruleProducts, selectedRuleProductId]);
-
-    useEffect(() => {
-        if (!selectedRuleProductId) return;
-
-        setPricingRuleDraft(readStoredRule(currentUser.id, selectedRuleProductId));
-
-        if (typeof window !== "undefined") {
-            window.localStorage.setItem(getSelectedRuleProductStorageKey(currentUser.id), selectedRuleProductId);
-        }
-    }, [currentUser.id, selectedRuleProductId]);
+    const effectiveSelectedRuleProductId = selectedRuleProduct ? String(selectedRuleProduct.id) : "";
+    const savedPricingRuleDraft = useMemo(
+        () => getRuleDraftFromProduct(currentUser, selectedRuleProduct),
+        [currentUser, selectedRuleProduct],
+    );
+    const pricingRuleDraft =
+        pricingRuleDraftState?.productId === effectiveSelectedRuleProductId
+            ? pricingRuleDraftState.draft
+            : savedPricingRuleDraft;
 
     const handleProductChange = (event: ChangeEvent<HTMLInputElement>) => {
         const { name, value, type, checked } = event.target;
@@ -310,18 +296,22 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
 
     const handleRuleChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = event.target;
-        setPricingRuleDraft((prev) => ({ ...prev, [name]: value }));
+        setPricingRuleDraftState({
+            productId: effectiveSelectedRuleProductId,
+            draft: { ...pricingRuleDraft, [name]: value },
+        });
     };
 
     const handleRuleProductChange = (event: ChangeEvent<HTMLSelectElement>) => {
         setSelectedRuleProductId(event.target.value);
+        setPricingRuleDraftState(null);
     };
 
     const resetProductDraft = () => setProductDraft(EMPTY_PRODUCT_DRAFT);
 
     const handleEditProduct = (product: PricingProduct) => {
         setProductDraft({
-            localId: product.localId,
+            id: product.id,
             name: product.name,
             basePrice: String(product.basePrice),
             is_active: product.is_active,
@@ -339,34 +329,27 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
         }
 
         try {
-            const existingProduct = products.find((product) => product.localId === productDraft.localId);
-            let savedProduct: ApiProduct;
+            const existingProduct = products.find((product) => product.id === productDraft.id);
+            let savedProductId = existingProduct?.id;
 
-            if (existingProduct?.id) {
-                savedProduct = await updateProductMutation.mutateAsync({
+            if (existingProduct) {
+                await updateProductMutation.mutateAsync({
                     productId: existingProduct.id,
                     payload: { name, is_active: productDraft.is_active },
                 });
                 await updateBasePriceMutation.mutateAsync({ product: existingProduct.id, price: basePrice });
             } else {
-                savedProduct = await createProductMutation.mutateAsync({ name, is_active: productDraft.is_active });
+                const savedProduct = await createProductMutation.mutateAsync({ name, is_active: productDraft.is_active });
+                savedProductId = savedProduct.id;
                 await setBasePriceMutation.mutateAsync({ product: savedProduct.id, price: basePrice });
             }
 
-            const nextProduct: PricingProduct = {
-                localId: existingProduct?.localId ?? createLocalId(),
-                id: savedProduct.id,
-                name: savedProduct.name,
-                basePrice,
-                is_active: savedProduct.is_active ?? productDraft.is_active,
-                created_at: savedProduct.created_at,
-                updated_at: savedProduct.updated_at,
-            };
-
-            setProducts((prev) => {
-                const others = prev.filter((product) => product.localId !== nextProduct.localId);
-                return [nextProduct, ...others];
-            });
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] }),
+                savedProductId
+                    ? queryClient.invalidateQueries({ queryKey: ["api", "products", "price", savedProductId] })
+                    : Promise.resolve(),
+            ]);
             resetProductDraft();
             toast.success("محصول و قیمت پایه ذخیره شد");
         } catch (error) {
@@ -377,10 +360,13 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
 
     const handleDeleteProduct = async (product: PricingProduct) => {
         try {
-            if (product.id) {
-                await deleteProductMutation.mutateAsync(product.id);
+            await deleteProductMutation.mutateAsync(product.id);
+            await queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] });
+
+            if (String(product.id) === effectiveSelectedRuleProductId) {
+                setSelectedRuleProductId("");
             }
-            setProducts((prev) => prev.filter((item) => item.localId !== product.localId));
+
             toast.success("محصول حذف شد");
         } catch (error) {
             const message = error instanceof Error ? error.message : "حذف محصول با خطا مواجه شد";
@@ -397,7 +383,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
             return;
         }
 
-        const productId = Number(selectedRuleProductId);
+        const productId = Number(effectiveSelectedRuleProductId);
 
         if (!Number.isInteger(productId) || productId <= 0) {
             toast.error("برای ثبت قانون قیمت‌گذاری، یک کالا را انتخاب کنید");
@@ -417,21 +403,40 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                 await setPricingRuleMutation.mutateAsync(payload);
             }
 
-            if (typeof window !== "undefined") {
-                window.localStorage.setItem(getRuleStorageKey(currentUser.id, productId), JSON.stringify(pricingRuleDraft));
-                window.localStorage.setItem(getSelectedRuleProductStorageKey(currentUser.id), String(productId));
-            }
-
             await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] }),
                 queryClient.invalidateQueries({ queryKey: ["api", "products", "price"] }),
                 queryClient.invalidateQueries({ queryKey: ["api", "products", "price", productId] }),
             ]);
+            setPricingRuleDraftState(null);
             toast.success("قانون قیمت‌گذاری این کالا ذخیره شد");
         } catch (error) {
             const message = error instanceof Error ? error.message : "ذخیره قانون قیمت‌گذاری با خطا مواجه شد";
             toast.error(message);
         }
     };
+
+    if (isProductsLoading) {
+        return <LoadingState />;
+    }
+
+    if (isProductsError) {
+        return (
+            <div className="px-4 py-10">
+                <Card className="mx-auto max-w-3xl border border-amber-300/20 bg-brand-surface/80 p-8 text-right backdrop-blur-xl">
+                    <h2 className="text-xl font-bold text-brand-text-primary">دریافت محصولات قیمت‌گذاری با خطا مواجه شد</h2>
+                    <p className="mt-3 leading-7 text-brand-text-secondary">لطفا دوباره تلاش کنید.</p>
+                    <Button
+                        type="button"
+                        className="mt-5"
+                        onClick={() => queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] })}
+                    >
+                        تلاش دوباره
+                    </Button>
+                </Card>
+            </div>
+        );
+    }
 
     return (
         <div className="px-4 py-8">
@@ -516,7 +521,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                 <div className="mt-5 grid grid-cols-2 gap-2">
                                     <Button type="submit" disabled={isSavingProduct} className="gap-2 cursor-pointer">
                                         <Save className="h-4 w-4" />
-                                        {productDraft.localId ? "ذخیره" : "ثبت"}
+                                        {productDraft.id ? "ذخیره" : "ثبت"}
                                     </Button>
                                     <button
                                         type="button"
@@ -551,7 +556,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                         </Label>
                                         <select
                                             id="rule-product"
-                                            value={selectedRuleProductId}
+                                            value={effectiveSelectedRuleProductId}
                                             onChange={handleRuleProductChange}
                                             disabled={!ruleProducts.length}
                                             className="flex h-11 w-full rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25 disabled:cursor-not-allowed disabled:opacity-60"
@@ -589,7 +594,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                                 </div>
 
                                 <div className="mt-5 flex justify-end">
-                                    <Button type="submit" disabled={isSavingRule || !selectedRuleProductId} className="gap-2 cursor-pointer">
+                                    <Button type="submit" disabled={isSavingRule || !effectiveSelectedRuleProductId} className="gap-2 cursor-pointer">
                                         {pricingRuleDraft.type === "PERCENT" ? <Percent className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
                                         {isSavingRule ? "در حال ذخیره..." : "ذخیره قانون"}
                                     </Button>
@@ -618,7 +623,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                             {products.length ? (
                                 <div className="space-y-3">
                                     {products.map((product) => (
-                                        <div key={product.localId} className="rounded-lg border border-white/10 bg-brand-base/45 p-4">
+                                        <div key={product.id} className="rounded-lg border border-white/10 bg-brand-base/45 p-4">
                                             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                                                 <div>
                                                     <h3 className="font-bold text-brand-text-primary">{product.name}</h3>
@@ -671,7 +676,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                     className="grid gap-4 lg:grid-cols-3"
                 >
                     {activeProducts.map((product) => (
-                        <ProductPricePanel key={product.localId} product={product} rule={pricingRuleDraft} selectedRuleProductId={selectedRuleProductId} />
+                        <ProductPricePanel key={product.id} product={product} rule={pricingRuleDraft} selectedRuleProductId={effectiveSelectedRuleProductId} />
                     ))}
                 </motion.section>
 

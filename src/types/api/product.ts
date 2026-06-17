@@ -21,6 +21,26 @@ export type ApiProduct = {
     [key: string]: unknown;
 };
 
+export type PriceTreeLevel = {
+    role: string;
+    user_id: string;
+    parent_price: number;
+    your_price: number;
+    rule_type: PricingRuleType | string | null;
+    rule_value: number | null;
+    note: string | null;
+    [key: string]: unknown;
+};
+
+export type ProductPriceTreeDetail = ApiProduct & {
+    final_price: number;
+    levels: PriceTreeLevel[];
+};
+
+export type GetProductsResponse = {
+    data: ProductPriceTreeDetail[];
+};
+
 /**
  * Request payload for setting the base price of a product. Only `product` and
  * `price` are required per the OpenAPI spec.
@@ -109,11 +129,6 @@ export type PricingRuleResponse = {
 export interface ProductPriceResponse {
     parent_price: number;
     final_price: number;
-    levels: Array<{
-        role: string;
-        parent_price: number;
-        your_price: number;
-        [key: string]: unknown;
-    }>;
+    levels: PriceTreeLevel[];
     [key: string]: unknown;
 }

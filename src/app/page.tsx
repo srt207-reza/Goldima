@@ -1,88 +1,475 @@
-import SilverBullionPrices from "@/components/dashboard/SilverBullionPrices";
-import Footer from "@/components/layout/Footer";
-import { MagicCard } from "@/components/ui/magic-card";
+"use client";
 
-const features = [
-    {
-        title: "به‌روزرسانی در لحظه",
-        description: "اتصال مستقیم به بازارهای جهانی؛ قیمت‌ها به صورت کاملاً خودکار و بدون تاخیر به‌روزرسانی می‌شوند.",
-        iconPath: "m3.75 13.5 10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75Z",
-    },
-    {
-        title: "امنیت سازمانی",
-        description: "رمزنگاری پیشرفته داده‌ها و استفاده از پروتکل‌های امنیتی برای محافظت از دارایی‌ها و اطلاعات شما.",
-        iconPath:
-            "M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z",
-    },
-    {
-        title: "پشتیبانی VIP",
-        description: "تیم متخصص ما به صورت ۲۴ ساعته در ۷ روز هفته آماده ارائه مشاوره و رفع مشکلات احتمالی شماست.",
-        iconPath:
-            "M14.25 9.75v-4.5m0 4.5h4.5m-4.5 0 6-6m-3 18c-8.284 0-15-6.716-15-15V4.5A2.25 2.25 0 0 1 4.5 2.25h1.372c.516 0 .966.351 1.091.852l1.106 4.423c.11.44-.054.902-.417 1.173l-1.293.97a1.062 1.062 0 0 0-.38 1.21 12.035 12.035 0 0 0 7.143 7.143c.441.162.928-.004 1.21-.38l.97-1.293a1.125 1.125 0 0 1 1.173-.417l4.423 1.106c.5.125.852.575.852 1.091V19.5a2.25 2.25 0 0 1-2.25 2.25h-2.25Z",
-    },
-];
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
+import {
+    Activity,
+    BadgeDollarSign,
+    BarChart3,
+    ChevronDown,
+    ChevronUp,
+    Clock3,
+    Gem,
+    Layers3,
+    Radio,
+    RefreshCw,
+    ShieldCheck,
+    Sparkles,
+    TrendingUp,
+    type LucideIcon,
+} from "lucide-react";
+import { useCurrentUserQuery, useProductsQuery } from "@/hooks/api";
+import { getBusinessLabel, getNormalizedUserRole } from "@/lib/user-role";
+import type { PriceTreeLevel, ProductPriceTreeDetail } from "@/types/api/product";
+import LOGO from "@/../public/assets/images/logo.png";
+import BULLION_IMAGE from "@/../public/assets/images/products/img1.webp";
+
+type BoardProduct = ProductPriceTreeDetail & {
+    basePrice: number;
+    parentPrice: number;
+    finalPrice: number;
+    changeAmount: number;
+    changeRate: number;
+    currentLevel?: PriceTreeLevel;
+};
+
+const REFRESH_INTERVAL_MS = 8_000;
+const MAX_VISIBLE_PRODUCTS = 14;
+
+function useNow() {
+    const [now, setNow] = useState(() => new Date());
+
+    useEffect(() => {
+        const timer = window.setInterval(() => setNow(new Date()), 1000);
+        return () => window.clearInterval(timer);
+    }, []);
+
+    return now;
+}
+
+function formatNumber(value: number, maximumFractionDigits = 0): string {
+    return new Intl.NumberFormat("fa-IR", { maximumFractionDigits }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatPrice(value: number): string {
+    return new Intl.NumberFormat("fa-IR", {
+        maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    }).format(Number.isFinite(value) ? value : 0);
+}
+
+function formatSignedPrice(value: number): string {
+    const sign = value > 0 ? "+" : "";
+    return `${sign}${formatPrice(value)}`;
+}
+
+function formatTime(date: Date): string {
+    return new Intl.DateTimeFormat("fa-IR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    }).format(date);
+}
+
+function formatDate(date: Date): string {
+    return new Intl.DateTimeFormat("fa-IR", {
+        weekday: "long",
+        day: "2-digit",
+        month: "long",
+    }).format(date);
+}
+
+function formatUpdatedAt(timestamp: number, fallback: Date): string {
+    return formatTime(timestamp ? new Date(timestamp) : fallback);
+}
+
+function getLevels(product: ProductPriceTreeDetail): PriceTreeLevel[] {
+    return Array.isArray(product.levels) ? product.levels : [];
+}
+
+function getFiniteNumber(value: unknown, fallback = 0): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+}
+
+function getBasePrice(product: ProductPriceTreeDetail): number {
+    const levels = getLevels(product);
+    const masterLevel = levels.find((level) => level.role?.toUpperCase() === "MASTER");
+    const firstLevel = levels[0];
+    return getFiniteNumber(masterLevel?.your_price, getFiniteNumber(firstLevel?.your_price, product.final_price));
+}
+
+function getParentPrice(product: ProductPriceTreeDetail, basePrice: number): number {
+    const levels = getLevels(product);
+    const lastLevel = levels[levels.length - 1];
+    return getFiniteNumber(lastLevel?.parent_price, basePrice);
+}
+
+function getCurrentLevel(product: ProductPriceTreeDetail): PriceTreeLevel | undefined {
+    const levels = getLevels(product);
+    return levels[levels.length - 1];
+}
+
+function normalizeBoardProduct(product: ProductPriceTreeDetail): BoardProduct {
+    const basePrice = getBasePrice(product);
+    const parentPrice = getParentPrice(product, basePrice);
+    const finalPrice = getFiniteNumber(product.final_price, parentPrice);
+    const changeAmount = finalPrice - basePrice;
+    const changeRate = basePrice > 0 ? (changeAmount / basePrice) * 100 : 0;
+
+    return {
+        ...product,
+        levels: getLevels(product),
+        basePrice,
+        parentPrice,
+        finalPrice,
+        changeAmount,
+        changeRate,
+        currentLevel: getCurrentLevel(product),
+    };
+}
+
+function getRuleLabel(product: BoardProduct): string {
+    const level = product.currentLevel;
+    if (level?.note === "override") return "دستی";
+    if (level?.rule_type === "PERCENT") return "درصدی";
+    if (level?.rule_type === "FIXED") return "ثابت";
+    return "مرجع";
+}
+
+function getRoleLabel(role: ReturnType<typeof getNormalizedUserRole>): string {
+    if (role === "reference") return "مرجع";
+    if (role === "wholesale") return "عمده فروش";
+    if (role === "retail") return "خرده فروش";
+    return "کاربر";
+}
+
+function MetricTile({
+    icon: Icon,
+    label,
+    value,
+    tone = "silver",
+}: {
+    icon: LucideIcon;
+    label: string;
+    value: string;
+    tone?: "silver" | "gold" | "green" | "rose";
+}) {
+    const toneClass = {
+        silver: "border-slate-200/15 bg-white/[0.045] text-slate-100",
+        gold: "border-amber-300/25 bg-amber-300/10 text-amber-100",
+        green: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
+        rose: "border-rose-300/25 bg-rose-400/10 text-rose-100",
+    }[tone];
+
+    return (
+        <div className={`goldima-panel-sweep rounded-lg border p-4 ${toneClass}`}>
+            <div className="flex items-center justify-between gap-3">
+                <span className="text-xs font-bold text-slate-300">{label}</span>
+                <Icon className="h-5 w-5 shrink-0" />
+            </div>
+            <div className="mt-3 min-h-8 text-2xl font-black leading-none text-white lg:text-3xl" dir="ltr">
+                {value}
+            </div>
+        </div>
+    );
+}
+
+function PriceDelta({ product }: { product: BoardProduct }) {
+    const isUp = product.changeAmount >= 0;
+    const Icon = isUp ? ChevronUp : ChevronDown;
+
+    return (
+        <div
+            className={[
+                "inline-flex h-11 min-w-24 items-center justify-center gap-1 rounded-lg border px-3 text-sm font-black",
+                isUp ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-rose-300/25 bg-rose-400/10 text-rose-200",
+            ].join(" ")}
+            dir="ltr"
+        >
+            <Icon className="h-4 w-4" />
+            {formatNumber(Math.abs(product.changeRate), 1)}%
+        </div>
+    );
+}
+
+function ProductPriceRow({ product, index }: { product: BoardProduct; index: number }) {
+    return (
+        <div
+            className="goldima-row-reveal grid min-h-20 grid-cols-[3rem_minmax(0,1.15fr)_minmax(7rem,0.75fr)_minmax(8rem,0.9fr)_6rem] items-center gap-3 border-b border-white/8 px-4 py-3 last:border-b-0 max-md:grid-cols-[2.5rem_minmax(0,1fr)_minmax(7rem,0.8fr)]"
+            style={{ animationDelay: `${index * 70}ms` }}
+        >
+            <div className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-sm font-black text-slate-200">
+                {formatNumber(index + 1)}
+            </div>
+
+            <div className="min-w-0">
+                <div className="truncate text-xl font-black text-white lg:text-2xl">{product.name}</div>
+                <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-400">
+                    <Layers3 className="h-3.5 w-3.5 text-amber-200" />
+                    <span>{getRuleLabel(product)}</span>
+                </div>
+            </div>
+
+            <div className="text-left max-md:hidden">
+                <div className="text-xs font-bold text-slate-400">قیمت مرجع</div>
+                <div className="mt-1 text-lg font-bold text-slate-200" dir="ltr">
+                    {formatPrice(product.basePrice)}
+                </div>
+            </div>
+
+            <div className="text-left">
+                <div className="text-xs font-bold text-amber-100">قیمت نهایی</div>
+                <div className="mt-1 text-2xl font-black text-amber-100 drop-shadow-[0_0_18px_rgba(251,191,36,0.25)]" dir="ltr">
+                    {formatPrice(product.finalPrice)}
+                </div>
+            </div>
+
+            <div className="justify-self-end max-md:hidden">
+                <PriceDelta product={product} />
+            </div>
+        </div>
+    );
+}
+
+function PriceTicker({ products }: { products: BoardProduct[] }) {
+    if (!products.length) return null;
+
+    const tickerProducts = [...products, ...products];
+
+    return (
+        <div className="overflow-hidden rounded-lg border border-amber-300/20 bg-black/40 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.26)]">
+            <div className="goldima-price-ticker flex w-max items-center gap-10 px-4">
+                {tickerProducts.map((product, index) => (
+                    <div key={`${product.id}-${index}`} className="flex items-center gap-3 whitespace-nowrap">
+                        <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.65)]" />
+                        <span className="text-sm font-bold text-slate-300">{product.name}</span>
+                        <span className="font-mono text-xl font-black text-amber-100" dir="ltr">
+                            {formatPrice(product.finalPrice)}
+                        </span>
+                        <span className="text-xs font-bold text-slate-500">USD</span>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function EmptyBoard() {
+    return (
+        <div className="grid min-h-[48vh] place-items-center rounded-lg border border-dashed border-white/15 bg-white/[0.035] p-8 text-center">
+            <div>
+                <BadgeDollarSign className="mx-auto h-12 w-12 text-amber-200" />
+                <h2 className="mt-5 text-2xl font-black text-white">محصول فعالی برای نمایش وجود ندارد</h2>
+                <p className="mt-3 text-sm text-slate-400">محصولات قیمت گذاری شده در این تابلو نمایش داده می شوند.</p>
+            </div>
+        </div>
+    );
+}
 
 export default function HomePage() {
+    const now = useNow();
+    const { data: currentUser } = useCurrentUserQuery();
+    const {
+        data: apiProducts = [],
+        dataUpdatedAt,
+        isError,
+        isFetching,
+        isLoading,
+        refetch,
+    } = useProductsQuery({
+        refetchInterval: REFRESH_INTERVAL_MS,
+        refetchOnWindowFocus: true,
+        staleTime: 0,
+    });
+
+    const role = getNormalizedUserRole(currentUser);
+    const roleLabel = getRoleLabel(role);
+    const businessLabel = getBusinessLabel(currentUser);
+
+    const products = useMemo(
+        () =>
+            apiProducts
+                .filter((product) => product.is_active !== false)
+                .map(normalizeBoardProduct)
+                .sort((a, b) => b.finalPrice - a.finalPrice),
+        [apiProducts],
+    );
+
+    const featuredProduct = products[0];
+    const visibleProducts = products.slice(0, MAX_VISIBLE_PRODUCTS);
+    const averageFinalPrice = products.length
+        ? products.reduce((sum, product) => sum + product.finalPrice, 0) / products.length
+        : 0;
+    const totalPremium = products.reduce((sum, product) => sum + product.changeAmount, 0);
+    const marketTone = totalPremium >= 0 ? "green" : "rose";
+
     return (
-        <>
-            <main className="container mx-auto max-w-7xl grow px-4 pb-16 pt-8 sm:px-6 lg:px-8">
-                <MagicCard className="mb-16 p-8 md:p-10" spotlightClassName="bg-silver-light/15">
-                    <div className="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-brand-hover/40 blur-3xl transition-all duration-700 group-hover:scale-110 group-hover:translate-x-4" />
-                    <div className="absolute top-10 right-20 h-2 w-2 animate-float rounded-full bg-silver-light/30" />
-                    <div className="absolute top-32 right-40 h-1.5 w-1.5 animate-float rounded-full bg-silver-metallic/40 [animation-delay:1s]" />
-                    <div className="absolute bottom-20 left-32 h-2 w-2 animate-float rounded-full bg-silver-dark/30 [animation-delay:2s]" />
+        <main className="relative min-h-[calc(100vh-5rem)] overflow-hidden bg-[#060708] text-white">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,#060708_0%,#111827_46%,#17120a_100%)]" />
+            <div className="pointer-events-none absolute inset-0 opacity-[0.09] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:72px_72px]" />
+            <div className="goldima-live-scan pointer-events-none absolute inset-0" />
+            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-amber-200 via-white to-emerald-300" />
 
-                    <div className="relative z-10 flex flex-col items-center gap-6 md:flex-row md:items-start md:gap-8">
-                        <div className="relative flex h-20 w-20 rotate-3 items-center justify-center overflow-hidden rounded-2xl border border-silver-dark/30 bg-gradient-to-br from-brand-base to-brand-card shadow-lg shadow-silver/10 transition-all duration-500 group-hover:rotate-0 group-hover:scale-110 group-hover:shadow-silver-glow">
-                            <div className="absolute inset-0 translate-x-[-100%] bg-gradient-to-tr from-transparent via-silver-light/10 to-transparent transition-transform duration-1000 group-hover:translate-x-[100%]" />
-                            <svg
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                strokeWidth={1.5}
-                                stroke="currentColor"
-                                className="relative z-10 h-10 w-10 text-silver-metallic transition-colors duration-500 group-hover:text-silver-light"
-                            >
-                                <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"
-                                />
-                            </svg>
+            <div className="relative z-10 flex min-h-[calc(100vh-5rem)] flex-col gap-4 p-3 sm:p-4 lg:p-5 2xl:p-6">
+                <header className="goldima-panel-sweep grid gap-4 rounded-lg border border-white/10 bg-black/40 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:grid-cols-[auto_1fr_auto] lg:items-center">
+                    <div className="flex min-w-0 items-center gap-4">
+                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-amber-200/25 p-1.5 shadow-[0_0_35px_rgba(251,191,36,0.18)]">
+                            <Image src={LOGO} alt="GOLDIMA" fill className="object-contain p-1" priority sizes="64px" />
                         </div>
-
-                        <div className="flex-1 text-right">
-                            <h1 className="mb-3 text-3xl font-bold leading-tight tracking-tight text-white md:text-4xl lg:text-5xl">
-                                به داشبورد{" "}
-                                <span className="inline-block animate-pulse bg-gradient-to-l from-silver-light via-silver to-silver-dark bg-clip-text text-transparent transition-all duration-700 group-hover:from-silver-dark group-hover:via-silver-light group-hover:to-silver">
-                                    GOLDIMA
-                                </span>{" "}
-                                خوش آمدید
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2 text-xs font-black text-amber-200" dir="ltr">
+                                GOLDIMA LIVE
+                                <Radio className="h-4 w-4 animate-pulse text-emerald-300" />
+                            </div>
+                            <h1 className="mt-2 truncate text-3xl font-black leading-tight text-white lg:text-5xl">
+                                تابلوی لحظه ای قیمت محصولات
                             </h1>
-                            <p className="max-w-3xl text-base font-light leading-relaxed text-brand-text-secondary md:text-lg">
-                                مدیریت حرفه‌ای، رصد لحظه‌ای و معاملات امن شمش‌های نقره ترکیه و امارات در یک پلتفرم یکپارچه.
-                            </p>
-                            <div className="mt-4 h-1 w-24 rounded-full bg-gradient-to-l from-silver-light to-transparent opacity-50 transition-all duration-700 group-hover:w-40 group-hover:opacity-100" />
                         </div>
                     </div>
-                </MagicCard>
 
-                <SilverBullionPrices />
+                    <div className="grid gap-2 text-right lg:justify-self-center lg:text-center">
+                        <div className="text-sm font-bold text-slate-300">{businessLabel}</div>
+                        <div className="flex flex-wrap items-center gap-2 lg:justify-center">
+                            <span className="rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-bold text-amber-100">
+                                {roleLabel}
+                            </span>
+                            <span className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-100">
+                                قیمت زنده
+                            </span>
+                            <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-300">
+                                بروزرسانی {formatUpdatedAt(dataUpdatedAt, now)}
+                            </span>
+                        </div>
+                    </div>
 
-                <div className="mt-20 grid grid-cols-1 gap-6 md:grid-cols-3">
-                    {features.map((feature) => (
-                        <MagicCard key={feature.title} className="p-8 text-center" spotlightClassName="bg-emerald-400/10">
-                            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/5 bg-brand-card transition-colors duration-300 group-hover:bg-brand-hover">
-                                <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-8 w-8 text-silver-metallic">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d={feature.iconPath} />
-                                </svg>
+                    <div className="flex items-center justify-between gap-3 lg:justify-end">
+                        <div className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-left">
+                            <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
+                                <Clock3 className="h-4 w-4 text-amber-200" />
+                                {formatDate(now)}
                             </div>
-                            <h3 className="mb-3 text-lg font-semibold text-white">{feature.title}</h3>
-                            <p className="text-sm leading-relaxed text-brand-text-secondary">{feature.description}</p>
-                        </MagicCard>
-                    ))}
-                </div>
-            </main>
-            <Footer />
-        </>
+                            <div className="mt-3 font-mono text-xl font-black leading-none text-white" dir="ltr">
+                                {formatTime(now)}
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                void refetch();
+                            }}
+                            className="inline-flex h-16 w-16 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-amber-100 transition hover:border-amber-200/30 hover:bg-amber-200/10"
+                            title="بروزرسانی"
+                            aria-label="بروزرسانی قیمت ها"
+                        >
+                            <RefreshCw className={`h-5 w-5 ${isFetching ? "animate-spin" : ""}`} />
+                        </button>
+                    </div>
+                </header>
+
+                {isLoading ? (
+                    <div className="grid flex-1 place-items-center rounded-lg border border-white/10 bg-black/35">
+                        <div className="text-center">
+                            <RefreshCw className="mx-auto h-10 w-10 animate-spin text-amber-200" />
+                            <p className="mt-4 text-lg font-bold text-slate-300">در حال دریافت قیمت ها</p>
+                        </div>
+                    </div>
+                ) : isError ? (
+                    <div className="grid flex-1 place-items-center rounded-lg border border-rose-300/20 bg-rose-500/10 p-8 text-center">
+                        <div>
+                            <ShieldCheck className="mx-auto h-12 w-12 text-rose-100" />
+                            <h2 className="mt-5 text-2xl font-black text-white">دریافت قیمت ها با خطا مواجه شد</h2>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    void refetch();
+                                }}
+                                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/10 px-5 text-sm font-bold text-white transition hover:bg-white/15"
+                            >
+                                <RefreshCw className="h-4 w-4" />
+                                تلاش دوباره
+                            </button>
+                        </div>
+                    </div>
+                ) : products.length ? (
+                    <>
+                        <section className="grid flex-1 gap-4 xl:grid-cols-[0.78fr_1.22fr]">
+                            <div className="flex min-h-0 flex-col gap-4">
+                                <div className="goldima-panel-sweep overflow-hidden rounded-lg border border-amber-300/20 bg-[linear-gradient(180deg,rgba(251,191,36,0.16),rgba(15,23,42,0.62))] shadow-[0_30px_90px_rgba(0,0,0,0.32)]">
+                                    <div className="relative min-h-[25rem] p-5">
+                                        <div className="absolute inset-0 opacity-45">
+                                            <Image
+                                                src={BULLION_IMAGE}
+                                                alt=""
+                                                fill
+                                                className="object-cover"
+                                                priority
+                                                sizes="(min-width: 1280px) 40vw, 100vw"
+                                            />
+                                            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.82),rgba(0,0,0,0.36)_48%,rgba(0,0,0,0.82))]" />
+                                        </div>
+
+                                        <div className="relative z-10 flex h-full min-h-[22rem] flex-col justify-between">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div className="min-w-0">
+                                                    <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200/25 bg-amber-200/10 px-3 py-2 text-sm font-black text-amber-100">
+                                                        <Sparkles className="h-5 w-5" />
+                                                        محصول شاخص
+                                                    </div>
+                                                    <h2 className="mt-5 truncate text-3xl font-black text-white lg:text-5xl">
+                                                        {featuredProduct.name}
+                                                    </h2>
+                                                </div>
+                                                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-amber-200/25 bg-amber-200/10 text-amber-100">
+                                                    <Gem className="h-7 w-7" />
+                                                </div>
+                                            </div>
+
+                                            <div className="rounded-lg border border-white/10 bg-black/45 p-5 backdrop-blur-md">
+                                                <div className="text-sm font-bold text-slate-300">قیمت نهایی</div>
+                                                <div className="mt-3 flex items-end justify-between gap-4">
+                                                    <div className="goldima-price-glow font-mono text-5xl font-black leading-none text-amber-100 lg:text-7xl" dir="ltr">
+                                                        {formatPrice(featuredProduct.finalPrice)}
+                                                    </div>
+                                                    <span className="mb-2 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-black text-slate-300">
+                                                        USD
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <MetricTile icon={Layers3} label="محصول فعال" value={formatNumber(products.length)} tone="gold" />
+                                    <MetricTile icon={BarChart3} label="میانگین قیمت" value={formatPrice(averageFinalPrice)} />
+                                    <MetricTile icon={TrendingUp} label="بیشترین قیمت" value={formatPrice(featuredProduct.finalPrice)} tone="green" />
+                                    <MetricTile icon={Activity} label="اختلاف کل" value={formatSignedPrice(totalPremium)} tone={marketTone} />
+                                </div>
+                            </div>
+
+                            <div className="goldima-panel-sweep min-h-0 overflow-hidden rounded-lg border border-white/10 bg-black/35 shadow-[0_30px_90px_rgba(0,0,0,0.3)]">
+                                <div className="grid h-12 grid-cols-[3rem_minmax(0,1.15fr)_minmax(7rem,0.75fr)_minmax(8rem,0.9fr)_6rem] items-center gap-3 border-b border-amber-300/20 bg-white/[0.05] px-4 text-xs font-black text-slate-400 max-md:grid-cols-[2.5rem_minmax(0,1fr)_minmax(7rem,0.8fr)]">
+                                    <span>#</span>
+                                    <span>محصول</span>
+                                    <span className="text-left max-md:hidden">مرجع</span>
+                                    <span className="text-left text-amber-100">نهایی</span>
+                                    <span className="text-left max-md:hidden">تغییر</span>
+                                </div>
+
+                                <div className="max-h-[62vh] overflow-y-auto scrollbar-hide">
+                                    {visibleProducts.map((product, index) => (
+                                        <ProductPriceRow key={product.id} product={product} index={index} />
+                                    ))}
+                                </div>
+                            </div>
+                        </section>
+
+                        <PriceTicker products={products} />
+                    </>
+                ) : (
+                    <EmptyBoard />
+                )}
+            </div>
+        </main>
     );
 }

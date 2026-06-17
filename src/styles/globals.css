@@ -85,3 +85,103 @@ textarea:not(:disabled) {
 .react-multi-date-picker input {
     width: 100%;
 }
+
+@keyframes goldima-price-ticker {
+    from {
+        transform: translateX(0);
+    }
+
+    to {
+        transform: translateX(50%);
+    }
+}
+
+@keyframes goldima-row-reveal {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes goldima-panel-sweep {
+    from {
+        transform: translateX(115%);
+    }
+
+    to {
+        transform: translateX(-115%);
+    }
+}
+
+@keyframes goldima-live-scan {
+    0% {
+        transform: translateY(-100%);
+        opacity: 0;
+    }
+
+    12% {
+        opacity: 0.26;
+    }
+
+    48% {
+        opacity: 0;
+    }
+
+    100% {
+        transform: translateY(100%);
+        opacity: 0;
+    }
+}
+
+@keyframes goldima-price-glow {
+    0%,
+    100% {
+        text-shadow: 0 0 18px rgba(251, 191, 36, 0.18), 0 0 2px rgba(255, 255, 255, 0.6);
+    }
+
+    50% {
+        text-shadow: 0 0 34px rgba(251, 191, 36, 0.34), 0 0 10px rgba(16, 185, 129, 0.18);
+    }
+}
+
+.goldima-price-ticker {
+    animation: goldima-price-ticker 32s linear infinite;
+}
+
+.goldima-row-reveal {
+    animation: goldima-row-reveal 520ms ease-out both;
+}
+
+.goldima-panel-sweep {
+    position: relative;
+    overflow: hidden;
+}
+
+.goldima-panel-sweep::after {
+    animation: goldima-panel-sweep 6.5s ease-in-out infinite;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+    content: "";
+    inset: 0;
+    pointer-events: none;
+    position: absolute;
+    transform: translateX(115%);
+}
+
+.goldima-live-scan::before {
+    animation: goldima-live-scan 7s linear infinite;
+    background: linear-gradient(180deg, transparent, rgba(251, 191, 36, 0.16), transparent);
+    content: "";
+    height: 32%;
+    inset-inline: 0;
+    position: absolute;
+    top: 0;
+}
+
+.goldima-price-glow {
+    animation: goldima-price-glow 3.5s ease-in-out infinite;
+}

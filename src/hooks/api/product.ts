@@ -8,10 +8,12 @@ import type {
     ProductPriceOverrideRequest,
     ProductPriceOverrideResponse,
     ProductPriceResponse,
+    ProductPriceTreeDetail,
 } from "@/types/api/product";
 import {
     createProduct,
     deleteProduct,
+    getProducts,
     getProductPrice,
     setBasePrice,
     setOverridePrice,
@@ -21,6 +23,25 @@ import {
     updateProduct,
     updatePricingRule,
 } from "@/services/api/product";
+import { getAccessToken } from "@/lib/auth-storage";
+
+type ProductsQueryOptions = {
+    enabled?: boolean;
+    refetchInterval?: number | false;
+    refetchOnWindowFocus?: boolean;
+    staleTime?: number;
+};
+
+export function useProductsQuery(options: ProductsQueryOptions = {}) {
+    return useQuery<ProductPriceTreeDetail[], Error>({
+        queryKey: ["api", "products", "list"],
+        queryFn: getProducts,
+        enabled: Boolean(getAccessToken()) && (options.enabled ?? true),
+        refetchInterval: options.refetchInterval,
+        refetchOnWindowFocus: options.refetchOnWindowFocus,
+        staleTime: options.staleTime,
+    });
+}
 
 export function useCreateProductMutation() {
     return useMutation<ApiProduct, Error, Partial<ApiProduct>>({
