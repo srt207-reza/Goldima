@@ -26,10 +26,12 @@ import {
     useCurrentUserQuery,
     useUpdateBusinessProfileMutation,
     useUpdateUserMutation,
+    useUsersQuery,
     useUserQuery,
 } from "@/hooks/api";
 import { canViewUserManagement, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
-import type { ManagedUser, UserStatus } from "@/types/api/user";
+import { toApiDate, toDisplayDate } from "@/lib/date-format";
+import type { ManagedUser, UserRole, UserStatus } from "@/types/api/user";
 
 type DetailFormState = {
     first_name: string;
@@ -37,6 +39,8 @@ type DetailFormState = {
     email: string;
     birth_date: string;
     status: UserStatus;
+    role: UserRole;
+    parent: string;
     business_name: string;
     business_handler: string;
     address: string;
@@ -56,6 +60,12 @@ const STATUS_LABELS: Record<UserStatus, string> = {
     REJECTED: "رد شده",
 };
 
+const USER_ROLE_LABELS: Record<"MASTER" | "WHOLESALER" | "RETAIL", string> = {
+    MASTER: "مرجع",
+    WHOLESALER: "عمده‌فروش",
+    RETAIL: "تک‌فروش",
+};
+
 function getDisplayName(user: ManagedUser): string {
     return user.business_name || [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || user.username || "بدون نام";
 }
@@ -65,8 +75,10 @@ function getInitialFormState(user: ManagedUser): DetailFormState {
         first_name: user.first_name ?? "",
         last_name: user.last_name ?? "",
         email: user.email ?? "",
-        birth_date: user.birth_date ?? "",
+        birth_date: toDisplayDate(user.birth_date),
         status: user.status,
+        role: user.role,
+        parent: user.parent ?? "",
         business_name: user.business_name ?? "",
         business_handler: user.business_handler ?? "",
         address: user.address ?? "",
@@ -118,7 +130,15 @@ function MissingState() {
     );
 }
 
-function UserEditor({ user }: { user: ManagedUser }) {
+function UserEditor({
+    user,
+    currentUser,
+    manageableUsers,
+}: {
+    user: ManagedUser;
+    currentUser: ManagedUser;
+    manageableUsers: ManagedUser[];
+}) {
     const queryClient = useQueryClient();
     const updateUserMutation = useUpdateUserMutation();
     const updateProfileMutation = useUpdateBusinessProfileMutation();
@@ -126,10 +146,31 @@ function UserEditor({ user }: { user: ManagedUser }) {
 
     const isSaving = updateUserMutation.isPending || updateProfileMutation.isPending;
     const role = getNormalizedUserRole(user);
+    const currentRole = getNormalizedUserRole(currentUser);
+    const canEditHierarchy = currentRole === "reference";
+    const wholesaleParentOptions = manageableUsers.filter(
+        (item) => String(item.id) !== String(user.id) && getNormalizedUserRole(item) === "wholesale" && item.status === "APPROVED"
+    );
+    const parentOptions =
+        formData.role === "WHOLESALER"
+            ? [currentUser]
+            : formData.role === "RETAIL"
+              ? [currentUser, ...wholesaleParentOptions]
+              : [];
 
     const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = event.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
+    };
+
+    const handleRoleChange = (event: ChangeEvent<HTMLSelectElement>) => {
+        const nextRole = event.target.value as UserRole;
+
+        setFormData((prev) => ({
+            ...prev,
+            role: nextRole,
+            parent: nextRole === "MASTER" ? "" : nextRole === "WHOLESALER" ? String(currentUser.id) : prev.parent,
+        }));
     };
 
     const refreshQueries = async () => {
@@ -164,8 +205,14 @@ function UserEditor({ user }: { user: ManagedUser }) {
                     first_name: formData.first_name.trim(),
                     last_name: formData.last_name.trim(),
                     email: formData.email.trim(),
-                    birth_date: formData.birth_date.trim() || null,
+                    birth_date: toApiDate(formData.birth_date.trim()) || null,
                     status: formData.status,
+                    ...(canEditHierarchy
+                        ? {
+                              role: formData.role,
+                              parent: formData.role === "MASTER" ? null : formData.parent || null,
+                          }
+                        : {}),
                 },
             });
 
@@ -274,7 +321,7 @@ function UserEditor({ user }: { user: ManagedUser }) {
                             <Label htmlFor="birth_date" className="mb-2 block">
                                 تاریخ تولد
                             </Label>
-                            <Input id="birth_date" name="birth_date" value={formData.birth_date} onChange={handleChange} dir="ltr" placeholder="1403-01-01" />
+                            <Input id="birth_date" name="birth_date" value={formData.birth_date} onChange={handleChange} dir="ltr" placeholder="1403/01/01" />
                         </div>
                         <div>
                             <Label htmlFor="status" className="mb-2 block">
@@ -292,6 +339,48 @@ function UserEditor({ user }: { user: ManagedUser }) {
                                 <option value="REJECTED">رد شده</option>
                             </select>
                         </div>
+                        {canEditHierarchy ? (
+                            <>
+                                <div>
+                                    <Label htmlFor="role" className="mb-2 block">
+                                        نقش کاربر
+                                    </Label>
+                                    <select
+                                        id="role"
+                                        name="role"
+                                        value={formData.role}
+                                        onChange={handleRoleChange}
+                                        className="flex h-11 w-full cursor-pointer rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
+                                    >
+                                        <option value="RETAIL">{USER_ROLE_LABELS.RETAIL}</option>
+                                        <option value="WHOLESALER">{USER_ROLE_LABELS.WHOLESALER}</option>
+                                        <option value="MASTER">{USER_ROLE_LABELS.MASTER}</option>
+                                    </select>
+                                </div>
+
+                                {formData.role !== "MASTER" ? (
+                                    <div>
+                                        <Label htmlFor="parent" className="mb-2 block">
+                                            {formData.role === "WHOLESALER" ? "مرجع این عمده‌فروش" : "والد / عمده‌فروش"}
+                                        </Label>
+                                        <select
+                                            id="parent"
+                                            name="parent"
+                                            value={formData.parent}
+                                            onChange={handleChange}
+                                            className="flex h-11 w-full cursor-pointer rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
+                                        >
+                                            <option value="">بدون والد</option>
+                                            {parentOptions.map((option) => (
+                                                <option key={String(option.id)} value={String(option.id)}>
+                                                    {getDisplayName(option)}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                ) : null}
+                            </>
+                        ) : null}
                         <div>
                             <Label className="mb-2 block">شماره موبایل</Label>
                             <div className="flex h-11 items-center rounded-lg border border-silver-dark/20 bg-brand-base/45 px-4 text-sm text-brand-text-secondary" dir="ltr">
@@ -384,6 +473,7 @@ export default function StoreUserDetailPage() {
     const router = useRouter();
     const { data: currentUser, isLoading: isLoadingCurrent } = useCurrentUserQuery();
     const { data: user, isLoading: isLoadingUser, isError } = useUserQuery(params.user_id);
+    const approvedUsersQuery = useUsersQuery({ status: "APPROVED" });
 
     useEffect(() => {
         if (isLoadingCurrent || isLoadingUser) return;
@@ -409,7 +499,12 @@ export default function StoreUserDetailPage() {
     return (
         <div className="px-4 py-8">
             <div className="mx-auto w-full max-w-7xl">
-                <UserEditor key={String(user.id)} user={user} />
+                <UserEditor
+                    key={String(user.id)}
+                    user={user}
+                    currentUser={currentUser}
+                    manageableUsers={approvedUsersQuery.data ?? []}
+                />
             </div>
         </div>
     );

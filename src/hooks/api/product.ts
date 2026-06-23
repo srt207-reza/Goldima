@@ -28,6 +28,7 @@ import { getAccessToken } from "@/lib/auth-storage";
 type ProductsQueryOptions = {
     enabled?: boolean;
     refetchInterval?: number | false;
+    refetchIntervalInBackground?: boolean;
     refetchOnWindowFocus?: boolean;
     staleTime?: number;
 };
@@ -38,6 +39,7 @@ export function useProductsQuery(options: ProductsQueryOptions = {}) {
         queryFn: getProducts,
         enabled: Boolean(getAccessToken()) && (options.enabled ?? true),
         refetchInterval: options.refetchInterval,
+        refetchIntervalInBackground: options.refetchIntervalInBackground,
         refetchOnWindowFocus: options.refetchOnWindowFocus,
         staleTime: options.staleTime,
     });

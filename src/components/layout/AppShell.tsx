@@ -84,11 +84,11 @@ function BusinessLogoMark({
     const logoSrc = resolveMediaUrl(src);
 
     return (
-        <div className={`relative shrink-0 overflow-hidden border border-silver-dark/20 bg-brand-base/60 ${className}`}>
+        <div className={`relative shrink-0 overflow-hidden ${logoSrc ? "border border-silver-dark/20 bg-brand-base/60" : ""} ${className}`}>
             {logoSrc ? (
                 <img src={logoSrc} alt={alt} className="h-full w-full object-cover" />
             ) : (
-                <Image src={LOGO} alt="GOLDIMA Logo" fill className="object-contain p-1.5" priority />
+                <Image src={LOGO} alt="GOLDIMA Logo" fill className="object-contain" priority />
             )}
         </div>
     );

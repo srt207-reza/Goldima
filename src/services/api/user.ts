@@ -1,4 +1,5 @@
 import { axiosInstance } from "@/lib/axios";
+import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import type {
     ApiResponse,
     ApiUser,
@@ -7,6 +8,8 @@ import type {
     CurrentUser,
     CurrentUserResponse,
     ManagedUser,
+    ParentBusinessProfileResponse,
+    PublicBusinessProfile,
     UserResponse,
     UsersQueryParams,
     UsersResponse,
@@ -38,6 +41,8 @@ function normalizeUserItem(item: ApiUser | BusinessProfile): ManagedUser {
             business_name: item.business_name,
             business_handler: item.business_handler,
             address: item.address,
+            province: item.province,
+            city: item.city,
             telephone: item.telephone,
             business_logo: item.business_logo,
             business_profile_created_at: item.created_at,
@@ -53,6 +58,8 @@ function normalizeUserItem(item: ApiUser | BusinessProfile): ManagedUser {
         business_name: item.business_name ?? "",
         business_handler: item.business_handler ?? null,
         address: item.address ?? "",
+        province: item.province ?? "",
+        city: item.city ?? "",
         telephone: item.telephone ?? "",
         business_logo: item.business_logo ?? null,
     };
@@ -131,6 +138,17 @@ export async function getBusinessProfile(profileId: number): Promise<BusinessPro
     }
 
     return data;
+}
+
+export async function getParentBusinessProfile(
+    businessHandler: string
+): Promise<PublicBusinessProfile> {
+    const normalizedHandler = normalizeBusinessPathSegment(businessHandler);
+    const { data } = await axiosInstance.get<ParentBusinessProfileResponse>(
+        `/api/users/parent_profile/${encodeURIComponent(normalizedHandler)}/`
+    );
+
+    return data.data;
 }
 
 function hasFileValue(payload: BusinessProfileUpdatePayload): boolean {

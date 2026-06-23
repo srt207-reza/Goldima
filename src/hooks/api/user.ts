@@ -5,12 +5,14 @@ import {
     getUserById,
     updateUser,
     getBusinessProfile,
+    getParentBusinessProfile,
     updateBusinessProfile,
     normalizeCurrentUserResponse,
     normalizeUsersResponse,
 } from "@/services/api/user";
 import { getAccessToken } from "@/lib/auth-storage";
-import type { ApiUser, BusinessProfile, BusinessProfileUpdatePayload, CurrentUser, CurrentUserResponse, ManagedUser, UsersQueryParams, UsersResponse } from "@/types/api/user";
+import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
+import type { ApiUser, BusinessProfile, BusinessProfileUpdatePayload, CurrentUser, CurrentUserResponse, ManagedUser, PublicBusinessProfile, UsersQueryParams, UsersResponse } from "@/types/api/user";
 
 export function useCurrentUserQuery() {
     return useQuery<CurrentUserResponse, Error, CurrentUser>({
@@ -68,6 +70,19 @@ export function useBusinessProfileQuery(profileId?: number) {
         queryKey: ["api", "profiles", profileId],
         queryFn: () => getBusinessProfile(profileId as number),
         enabled: typeof profileId === "number" && !Number.isNaN(profileId),
+    });
+}
+
+export function useParentBusinessProfileQuery(businessHandler?: string) {
+    const normalizedHandler = normalizeBusinessPathSegment(businessHandler);
+    const shouldFetch = Boolean(normalizedHandler && normalizedHandler !== DEFAULT_PARENT_BUSINESS_HANDLER);
+
+    return useQuery<PublicBusinessProfile, Error>({
+        queryKey: ["api", "users", "parent_profile", normalizedHandler],
+        queryFn: () => getParentBusinessProfile(normalizedHandler),
+        enabled: shouldFetch,
+        retry: false,
+        staleTime: 5 * 60 * 1000,
     });
 }
 

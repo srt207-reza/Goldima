@@ -5,6 +5,7 @@ import {
     phoneRegister,
     refreshAccessToken,
     sendPhoneOtp,
+    verifyPhoneOtp,
 } from "@/services/api/auth";
 import type {
     LogoutRequest,
@@ -14,6 +15,8 @@ import type {
     PhoneRegisterResponse,
     PhoneSendOtpRequest,
     PhoneSendOtpResponse,
+    PhoneVerifyOtpRequest,
+    PhoneVerifyOtpResponse,
     TokenRefreshRequest,
     TokenRefreshResponse,
 } from "@/types/api/auth";
@@ -27,6 +30,12 @@ export function useSendPhoneOtpMutation() {
 export function usePhoneLoginMutation() {
     return useMutation<PhoneLoginResponse, Error, PhoneLoginRequest>({
         mutationFn: phoneLogin,
+    });
+}
+
+export function useVerifyPhoneOtpMutation() {
+    return useMutation<PhoneVerifyOtpResponse, Error, PhoneVerifyOtpRequest>({
+        mutationFn: verifyPhoneOtp,
     });
 }
 

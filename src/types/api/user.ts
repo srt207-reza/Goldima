@@ -19,6 +19,8 @@ export type ApiUser = {
     business_handler?: string | null;
     business_profile_id?: number | null;
     address?: string;
+    province?: string;
+    city?: string;
     telephone?: string;
     business_logo?: string | null;
     user_role?: string;
@@ -33,6 +35,8 @@ export type BusinessProfile = {
     business_name: string;
     business_handler: string | null;
     address: string;
+    province: string;
+    city: string;
     telephone: string;
     business_logo: string | null;
     created_at: string;
@@ -67,11 +71,20 @@ export type UserResponse = ApiResponse<ApiUser | BusinessProfile> | ApiUser | Bu
 
 export type CurrentUserResponse = ApiResponse<BusinessProfile>;
 
+export type PublicBusinessProfile = {
+    business_name: string;
+    business_logo: string | null;
+};
+
+export type ParentBusinessProfileResponse = ApiResponse<PublicBusinessProfile>;
+
 export type ManagedUser = ApiUser & {
     business_profile_id: number | null;
     business_name: string;
     business_handler: string | null;
     address: string;
+    province: string;
+    city: string;
     telephone: string;
     business_logo: string | null;
     business_profile_created_at?: string;

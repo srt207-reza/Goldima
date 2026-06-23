@@ -22,6 +22,8 @@ export type AuthBusinessProfile = {
     business_name: string;
     business_handler: string | null;
     address: string;
+    province: string;
+    city: string;
     telephone: string;
     business_logo: string | null;
     is_active: boolean;
@@ -44,6 +46,14 @@ export type PhoneLoginRequest = {
     code: string;
 };
 
+export type PhoneVerifyOtpRequest = PhoneLoginRequest;
+
+export type PhoneVerifyOtpResponse = {
+    success: boolean;
+    message: string;
+    is_registered?: boolean;
+};
+
 export type PhoneAuthResponse = {
     access: string;
     refresh: string;
@@ -62,6 +72,8 @@ export type PhoneRegisterRequest = {
     business_name: string;
     business_handler: string;
     address: string;
+    province: string;
+    city: string;
     telephone: string;
     business_logo?: File | null;
     parent_business_handler?: string;

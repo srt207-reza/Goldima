@@ -25,6 +25,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MagicCard } from "@/components/ui/magic-card";
 import { useCurrentUserQuery, useUpdateBusinessProfileMutation, useUpdateUserMutation } from "@/hooks/api";
+import { toApiDate, toDisplayDate } from "@/lib/date-format";
 import { getBusinessLabel, getDisplayName, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
 import type { CurrentUser } from "@/types/api/user";
 
@@ -82,7 +83,7 @@ function getInitialFormState(user: CurrentUser): ProfileFormState {
         first_name: user.first_name ?? "",
         last_name: user.last_name ?? "",
         email: user.email ?? "",
-        birth_date: user.birth_date ?? "",
+        birth_date: toDisplayDate(user.birth_date),
         business_name: user.business_name ?? "",
         business_handler: user.business_handler ?? "",
         address: user.address ?? "",
@@ -143,13 +144,6 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
     const [logoFile, setLogoFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-    useEffect(() => {
-        const nextState = getInitialFormState(currentUser);
-        setSavedFormData(nextState);
-        setFormData(nextState);
-        setLogoFile(null);
-    }, [currentUser]);
-
     const role = getNormalizedUserRole(currentUser);
     const displayName = getDisplayName(currentUser);
     const businessLabel = getBusinessLabel(currentUser);
@@ -208,7 +202,7 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                     first_name: formData.first_name.trim(),
                     last_name: formData.last_name.trim(),
                     email: formData.email.trim(),
-                    birth_date: formData.birth_date.trim() || null,
+                    birth_date: toApiDate(formData.birth_date.trim()) || null,
                 },
             });
 
@@ -332,7 +326,7 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                             </Label>
                             <div className="relative">
                                 <CalendarDays className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-text-secondary" />
-                                <Input id="birth_date" name="birth_date" value={formData.birth_date} onChange={handleChange} dir="ltr" className="pl-10" />
+                                <Input id="birth_date" name="birth_date" value={formData.birth_date} onChange={handleChange} dir="ltr" placeholder="1403/01/01" className="pl-10" />
                             </div>
                         </div>
                     </div>

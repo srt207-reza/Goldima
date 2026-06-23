@@ -29,12 +29,50 @@ type RetriableConfig = InternalAxiosRequestConfig & {
     _retry?: boolean;
 };
 
+function getFirstString(value: unknown): string | null {
+    if (typeof value === "string" && value.trim()) {
+        return value;
+    }
+
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const message = getFirstString(item);
+            if (message) return message;
+        }
+    }
+
+    if (value && typeof value === "object") {
+        const record = value as Record<string, unknown>;
+        const directMessage = getFirstString(record.message) ?? getFirstString(record.detail) ?? getFirstString(record.error);
+        if (directMessage) return directMessage;
+
+        for (const item of Object.values(record)) {
+            const message = getFirstString(item);
+            if (message) return message;
+        }
+    }
+
+    return null;
+}
+
+function applyServerErrorMessage(error: AxiosError): void {
+    const serverMessage = getFirstString(error.response?.data);
+    if (!serverMessage) return;
+
+    Object.defineProperty(error, "message", {
+        configurable: true,
+        value: serverMessage,
+    });
+}
+
 const AUTH_PATHS = [
     "/api/login/",
     "/api/register/",
     "/api/phone/send-otp/",
+    "/api/phone/verify/",
     "/api/phone/login/",
     "/api/phone/register/",
+    "/api/users/parent_profile/",
     "/register/",
     "/api/logout/",
     "/api/token/refresh/",
@@ -60,6 +98,8 @@ let refreshPromise: Promise<TokenRefreshResponse> | null = null;
 axiosInstance.interceptors.response.use(
     (response) => response,
     async (error: AxiosError) => {
+        applyServerErrorMessage(error);
+
         const originalConfig = error.config as RetriableConfig | undefined;
 
         if (!originalConfig || error.response?.status !== 401) {
@@ -109,11 +149,7 @@ axiosInstance.interceptors.response.use(
                 refresh: refreshedTokens.refresh ?? refreshToken,
             });
 
-            //@ts-ignore
-            originalConfig.headers = {
-                ...(originalConfig.headers ?? {}),
-                Authorization: `Bearer ${refreshedTokens.access}`,
-            };
+            originalConfig.headers.Authorization = `Bearer ${refreshedTokens.access}`;
             return axiosInstance(originalConfig);
         } catch (refreshError) {
             clearAuthTokens();

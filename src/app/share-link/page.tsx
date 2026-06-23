@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertTriangle, CheckCircle2, Copy, ExternalLink, Link2, Share2, Sparkles } from "lucide-react";
+import { AlertTriangle, Copy, ExternalLink, Link2, Share2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,11 @@ export default function ShareLinkPage() {
     const [origin, setOrigin] = useState("");
 
     useEffect(() => {
-        setOrigin(window.location.origin.replace(/\/$/, ""));
+        const frameId = requestAnimationFrame(() => {
+            setOrigin(window.location.origin.replace(/\/$/, ""));
+        });
+
+        return () => cancelAnimationFrame(frameId);
     }, []);
 
     const businessHandler = useMemo(
@@ -39,7 +43,6 @@ export default function ShareLinkPage() {
 
     const businessName = getBusinessLabel(currentUser);
     const shareUrl = businessHandler ? `${origin || ""}/${businessHandler}` : "";
-    const registerUrl = businessHandler ? `${origin || ""}/register?business_handler=${encodeURIComponent(businessHandler)}` : "";
     const canShare = Boolean(shareUrl);
 
     const handleCopy = async (value: string, successMessage: string) => {
@@ -144,7 +147,7 @@ export default function ShareLinkPage() {
                             </div>
                         </MagicCard>
 
-                        <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
+                        {/* <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                             <div className="mb-5 flex items-center gap-2">
                                 <CheckCircle2 className="h-5 w-5 text-silver-light" />
                                 <h2 className="text-lg font-bold text-brand-text-primary">لینک مستقیم ثبت‌نام</h2>
@@ -160,7 +163,7 @@ export default function ShareLinkPage() {
                                     کپی لینک ثبت‌نام
                                 </Button>
                             </div>
-                        </Card>
+                        </Card> */}
                     </motion.div>
                 )}
             </div>

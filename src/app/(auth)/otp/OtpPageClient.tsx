@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AmbientBackground } from "@/components/ui/ambient-background";
 import { ShineBorder } from "@/components/ui/shine-border";
-import { usePhoneLoginMutation, usePhoneRegisterMutation, useSendPhoneOtpMutation } from "@/hooks/api";
+import { usePhoneLoginMutation, usePhoneRegisterMutation, useSendPhoneOtpMutation, useVerifyPhoneOtpMutation } from "@/hooks/api";
 import { getPostAuthUrl, getPendingUrl } from "@/lib/auth-routing";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
 import { setAuthTokens } from "@/lib/auth-storage";
@@ -55,6 +55,7 @@ export default function OtpPageClient() {
     const phoneLoginMutation = usePhoneLoginMutation();
     const phoneRegisterMutation = usePhoneRegisterMutation();
     const sendOtpMutation = useSendPhoneOtpMutation();
+    const verifyOtpMutation = useVerifyPhoneOtpMutation();
 
     const mode = useMemo(() => normalizeOtpMode(searchParams.get("mode")), [searchParams]);
     const username = useMemo(() => normalizeMobileUsername(searchParams.get("username") || ""), [searchParams]);
@@ -69,7 +70,7 @@ export default function OtpPageClient() {
 
     const code = useMemo(() => digits.join(""), [digits]);
     const isRegisterMode = mode === "register";
-    const isPending = phoneLoginMutation.isPending || phoneRegisterMutation.isPending || sendOtpMutation.isPending;
+    const isPending = phoneLoginMutation.isPending || phoneRegisterMutation.isPending || sendOtpMutation.isPending || verifyOtpMutation.isPending;
 
     useEffect(() => {
         if (!username) {
@@ -78,17 +79,17 @@ export default function OtpPageClient() {
             return;
         }
 
-        if (isRegisterMode) {
-            const payload = getPendingPhoneRegisterPayload();
-            if (!payload || normalizeMobileUsername(payload.username) !== username) {
-                setPendingRegisterPayload(null);
-            } else {
-                setPendingRegisterPayload(payload);
+        const timeoutId = window.setTimeout(() => {
+            if (isRegisterMode) {
+                const payload = getPendingPhoneRegisterPayload();
+                setPendingRegisterPayload(payload && normalizeMobileUsername(payload.username) === username ? payload : null);
             }
-        }
 
-        setIsBootstrapped(true);
-        window.setTimeout(() => inputRefs.current[0]?.focus(), 150);
+            setIsBootstrapped(true);
+            inputRefs.current[0]?.focus();
+        }, 150);
+
+        return () => window.clearTimeout(timeoutId);
     }, [businessHandler, isRegisterMode, router, username]);
 
     const setDigitAt = (index: number, value: string) => {
@@ -183,11 +184,15 @@ export default function OtpPageClient() {
         }
 
         try {
-            if (!isRegisterMode) {
+            const verifyResponse = await verifyOtpMutation.mutateAsync({ username, code });
+            const shouldRegister = typeof verifyResponse.is_registered === "boolean" ? !verifyResponse.is_registered : isRegisterMode;
+
+            if (!shouldRegister) {
+                clearPendingPhoneRegisterPayload();
                 const response = await phoneLoginMutation.mutateAsync({ username, code });
                 setAuthTokens({ access: response.access, refresh: response.refresh });
                 toast.success("ورود موفقیت‌آمیز بود");
-                router.replace(getPostAuthUrl(response.user_profile));
+                router.replace(getPostAuthUrl(response.user_profile, businessHandler));
                 return;
             }
 
@@ -208,6 +213,8 @@ export default function OtpPageClient() {
                 business_name: pendingRegisterPayload.business_name,
                 business_handler: pendingRegisterPayload.business_handler,
                 address: pendingRegisterPayload.address,
+                province: pendingRegisterPayload.province,
+                city: pendingRegisterPayload.city,
                 telephone: pendingRegisterPayload.telephone,
                 business_logo: logoFile,
                 parent_business_handler: pendingRegisterPayload.parent_business_handler || businessHandler,
@@ -216,7 +223,7 @@ export default function OtpPageClient() {
             clearPendingPhoneRegisterPayload();
             setAuthTokens({ access: response.access, refresh: response.refresh });
             toast.success("ثبت‌نام با موفقیت انجام شد");
-            router.replace(getPendingUrl(response.user_profile));
+            router.replace(getPendingUrl(response.user_profile, businessHandler));
         } catch (error) {
             const message = error instanceof Error ? error.message : isRegisterMode ? "ثبت‌نام با کد تایید با خطا مواجه شد" : "ورود با کد تایید با خطا مواجه شد";
             toast.error(message);
@@ -266,7 +273,6 @@ export default function OtpPageClient() {
                     <div dir="ltr" className="mt-8 flex justify-center gap-2 sm:gap-3">
                         {digits.map((digit, index) => (
                             <input
-                                // eslint-disable-next-line react/no-array-index-key
                                 key={index}
                                 ref={(node) => {
                                     inputRefs.current[index] = node;
@@ -293,7 +299,7 @@ export default function OtpPageClient() {
                             className="w-full cursor-pointer gap-2 text-white disabled:cursor-not-allowed"
                         >
                             <CheckCircle2 className="h-4 w-4" />
-                            {phoneLoginMutation.isPending || phoneRegisterMutation.isPending ? "در حال تایید..." : "تایید و ادامه"}
+                            {phoneLoginMutation.isPending || phoneRegisterMutation.isPending || verifyOtpMutation.isPending ? "در حال تایید..." : "تایید و ادامه"}
                         </Button>
 
                         <Button

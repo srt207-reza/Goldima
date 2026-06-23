@@ -1,152 +1,157 @@
 "use client";
 
-import { useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import {
-    BadgeDollarSign,
-    Calculator,
-    CheckCircle2,
-    Edit3,
-    Layers3,
-    LockKeyhole,
-    PackagePlus,
-    Percent,
-    Plus,
-    Save,
-    Sparkles,
-    Trash2,
-    WalletCards,
-} from "lucide-react";
+import { Calculator, CheckCircle2, Layers3, LockKeyhole, Percent, Plus, Save, SlidersHorizontal, ToggleLeft, ToggleRight } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { MagicCard } from "@/components/ui/magic-card";
 import {
     useCreateProductMutation,
     useCurrentUserQuery,
-    useDeleteProductMutation,
     useProductsQuery,
     useSetBasePriceMutation,
     useSetPricingRuleMutation,
     useUpdateBasePriceMutation,
-    useUpdatePricingRuleMutation,
     useUpdateProductMutation,
+    useUpdatePricingRuleMutation,
 } from "@/hooks/api";
+import {
+    findTradingMarket,
+    findTradingProduct,
+    getTradingMarket,
+    TRADING_PRODUCTS,
+    type TradingMarketKey,
+    type TradingProductDefinition,
+    type TradingProductKey,
+} from "@/constants/trading-board";
 import { canViewPricingTools, getNormalizedUserRole } from "@/lib/user-role";
-import type { PriceTreeLevel, PricingRuleRequest, PricingRuleType, ProductPriceTreeDetail } from "@/types/api/product";
+import type { PricingRuleRequest, PricingRuleType, ProductPriceSection, ProductPriceTreeDetail } from "@/types/api/product";
 import type { CurrentUser } from "@/types/api/user";
 
-type PricingProduct = ProductPriceTreeDetail & {
-    basePrice: number;
-    parentPrice: number;
-    finalPrice: number;
-};
-
-type ProductDraft = {
-    id?: number;
-    name: string;
-    basePrice: string;
+type MarketDraft = {
+    base_price_id?: number;
+    marketKey: TradingMarketKey;
+    marketValue: string;
+    buyPrice: string;
+    sellPrice: string;
     is_active: boolean;
 };
 
-type PricingRuleDraft = {
+type ProductDraft = {
+    productId?: number;
+    name: string;
+    is_active: boolean;
+    purity: string;
+    weight: string;
+    unit: string;
+    markets: Record<TradingMarketKey, MarketDraft>;
+};
+
+type RuleTarget = {
+    product: ProductPriceTreeDetail;
+    section: ProductPriceSection;
+    productDefinition: TradingProductDefinition;
+    marketKey: TradingMarketKey;
+};
+
+type RuleDraft = {
+    targetKey: string;
     type: PricingRuleType;
     value: string;
 };
 
-type PricingRuleDraftState = {
-    productId: string;
-    draft: PricingRuleDraft;
+const MARKET_API_NAMES: Record<TradingMarketKey, string> = {
+    tehran: "Tehran",
+    uae: "UAE",
+    turkey: "Turkey",
 };
 
-const EMPTY_PRODUCT_DRAFT: ProductDraft = {
-    name: "",
-    basePrice: "",
-    is_active: true,
-};
+function getProductId(product: ProductPriceTreeDetail): number {
+    return Number(product.product_id ?? product.id);
+}
 
-const DEFAULT_RULE_DRAFT: PricingRuleDraft = {
-    type: "PERCENT",
-    value: "",
-};
-
-function formatUsd(value: number): string {
-    return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 2,
-    }).format(Number.isFinite(value) ? value : 0);
+function formatMoney(value: number | null | undefined): string {
+    return new Intl.NumberFormat("fa-IR", { maximumFractionDigits: 0 }).format(Number.isFinite(Number(value)) ? Number(value) : 0);
 }
 
 function parseMoney(value: string): number {
     return Number(value.replace(/,/g, ""));
 }
 
-function isPricingRuleType(value: unknown): value is PricingRuleType {
-    return value === "PERCENT" || value === "FIXED";
+function hasInputValue(value: string): boolean {
+    return value.trim() !== "";
 }
 
-function toFiniteNumber(value: unknown, fallback = 0): number {
-    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+function toInputValue(value: unknown): string {
+    return typeof value === "number" && Number.isFinite(value) ? String(value) : "";
 }
 
-function findMasterLevel(levels: PriceTreeLevel[]): PriceTreeLevel | undefined {
-    return levels.find((level) => typeof level.role === "string" && level.role.toUpperCase() === "MASTER");
+function getProductByDefinition(products: ProductPriceTreeDetail[], definition: TradingProductDefinition): ProductPriceTreeDetail | undefined {
+    return products.find((product) => findTradingProduct(product.name)?.key === definition.key);
 }
 
-function getProductLevels(product: ProductPriceTreeDetail): PriceTreeLevel[] {
-    return Array.isArray(product.levels) ? product.levels : [];
-}
+function createDraft(definition: TradingProductDefinition, product?: ProductPriceTreeDetail): ProductDraft {
+    const markets = definition.markets.reduce<Record<TradingMarketKey, MarketDraft>>((acc, marketKey) => {
+        const marketDefinition = getTradingMarket(marketKey);
+        const section = product?.prices?.find((price) => findTradingMarket(price.market)?.key === marketKey);
 
-function getBasePrice(product: ProductPriceTreeDetail): number {
-    const levels = getProductLevels(product);
-    const masterLevel = findMasterLevel(levels);
-    const firstLevel = levels[0];
-    return toFiniteNumber(masterLevel?.your_price, toFiniteNumber(firstLevel?.your_price, product.final_price));
-}
+        acc[marketKey] = {
+            base_price_id: section?.base_price_id,
+            marketKey,
+            marketValue: section?.market || MARKET_API_NAMES[marketKey] || marketDefinition.label,
+            buyPrice: toInputValue(section?.base_buy_price),
+            sellPrice: toInputValue(section?.base_sell_price),
+            is_active: section?.is_active ?? false,
+        };
 
-function getParentPrice(product: ProductPriceTreeDetail, basePrice: number): number {
-    const levels = getProductLevels(product);
-    const lastLevel = levels[levels.length - 1];
-    return toFiniteNumber(lastLevel?.parent_price, basePrice);
-}
-
-function normalizePricingProduct(product: ProductPriceTreeDetail): PricingProduct {
-    const basePrice = getBasePrice(product);
-    const parentPrice = getParentPrice(product, basePrice);
+        return acc;
+    }, {} as Record<TradingMarketKey, MarketDraft>);
 
     return {
-        ...product,
-        levels: getProductLevels(product),
-        basePrice,
-        parentPrice,
-        finalPrice: toFiniteNumber(product.final_price, parentPrice),
+        productId: product ? getProductId(product) : undefined,
+        name: product?.name || definition.title,
+        is_active: product?.is_active ?? true,
+        purity: toInputValue(product?.purity ?? (definition.key.includes("silver") ? 999.9 : "")),
+        weight: toInputValue(product?.weight ?? (definition.key.includes("silver") ? 1000 : "")),
+        unit: product?.unit || (definition.key.includes("silver") ? "گرم" : ""),
+        markets,
     };
 }
 
-function getUserPriceLevel(user: CurrentUser, product?: PricingProduct): PriceTreeLevel | undefined {
-    if (!product) return undefined;
-
-    const userId = String(user.id);
-    return product.levels.find((level) => String(level.user_id) === userId);
+function buildDrafts(products: ProductPriceTreeDetail[]): Record<TradingProductKey, ProductDraft> {
+    return TRADING_PRODUCTS.reduce<Record<TradingProductKey, ProductDraft>>((acc, definition) => {
+        acc[definition.key] = createDraft(definition, getProductByDefinition(products, definition));
+        return acc;
+    }, {} as Record<TradingProductKey, ProductDraft>);
 }
 
-function getRuleDraftFromProduct(user: CurrentUser, product?: PricingProduct): PricingRuleDraft {
-    const level = getUserPriceLevel(user, product);
+function buildRuleTargets(products: ProductPriceTreeDetail[]): RuleTarget[] {
+    return products.flatMap((product) => {
+        const productDefinition = findTradingProduct(product.name);
+        if (!productDefinition || product.is_active === false) return [];
 
-    return {
-        type: isPricingRuleType(level?.rule_type) ? level.rule_type : DEFAULT_RULE_DRAFT.type,
-        value: typeof level?.rule_value === "number" && Number.isFinite(level.rule_value) ? String(level.rule_value) : "",
-    };
+        return (product.prices ?? [])
+            .map((section) => {
+                const market = findTradingMarket(section.market);
+                if (!market || section.is_active === false || !productDefinition.markets.includes(market.key)) return null;
+
+                return {
+                    product,
+                    section,
+                    productDefinition,
+                    marketKey: market.key,
+                };
+            })
+            .filter((target): target is RuleTarget => Boolean(target));
+    });
 }
 
-function calculatePreviewPrice(basePrice: number, rule: PricingRuleDraft): number {
-    const value = parseMoney(rule.value);
-    if (!Number.isFinite(value) || value < 0) return basePrice;
-    return rule.type === "PERCENT" ? basePrice * (1 + value / 100) : basePrice + value;
+function targetKey(target: RuleTarget): string {
+    return `${getProductId(target.product)}:${target.section.base_price_id}`;
 }
 
 function LoadingState() {
@@ -154,28 +159,13 @@ function LoadingState() {
         <div className="px-4 py-8">
             <Card className="mx-auto max-w-6xl border border-silver-dark/20 bg-brand-surface/80 p-8 text-right backdrop-blur-xl">
                 <div className="h-7 w-48 animate-pulse rounded bg-white/10" />
-                <div className="mt-6 grid gap-4 md:grid-cols-3">
-                    <div className="h-36 animate-pulse rounded-lg bg-white/10" />
-                    <div className="h-36 animate-pulse rounded-lg bg-white/10" />
-                    <div className="h-36 animate-pulse rounded-lg bg-white/10" />
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <div className="h-56 animate-pulse rounded-lg bg-white/10" />
+                    <div className="h-56 animate-pulse rounded-lg bg-white/10" />
                 </div>
             </Card>
         </div>
     );
-}
-
-export default function PricingPage() {
-    const { data: currentUser, isLoading } = useCurrentUserQuery();
-
-    if (isLoading) {
-        return <LoadingState />;
-    }
-
-    if (!currentUser || !canViewPricingTools(currentUser)) {
-        return <DeniedState />;
-    }
-
-    return <PricingWorkspace key={currentUser.id} currentUser={currentUser} />;
 }
 
 function DeniedState() {
@@ -193,206 +183,254 @@ function DeniedState() {
     );
 }
 
-function ProductPricePanel({
-    product,
-    rule,
-    selectedRuleProductId,
-}: {
-    product: PricingProduct;
-    rule: PricingRuleDraft;
-    selectedRuleProductId: string;
-}) {
-    const shouldPreviewDraftRule = Boolean(product.id && String(product.id) === selectedRuleProductId);
-    const previewPrice = shouldPreviewDraftRule ? calculatePreviewPrice(product.parentPrice, rule) : product.finalPrice;
-    const finalPrice = shouldPreviewDraftRule ? previewPrice : product.finalPrice;
-    const parentPrice = product.parentPrice;
+function ActiveToggle({ checked, onChange, label }: { checked: boolean; onChange: (checked: boolean) => void; label: string }) {
+    const Icon = checked ? ToggleRight : ToggleLeft;
 
     return (
-        <MagicCard className="rounded-2xl bg-brand-base/45 p-4" withBorderBeam={false}>
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <h3 className="truncate text-base font-bold text-brand-text-primary">{product.name}</h3>
-                    <p className="mt-1 text-xs text-brand-text-secondary">شناسه محصول: {product.id ?? "ثبت نشده"}</p>
-                </div>
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-silver-dark/20 bg-silver-light/10 text-silver-light">
-                    <BadgeDollarSign className="h-5 w-5" />
-                </div>
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-                <div className="rounded-lg border border-white/10 bg-white/[0.03] p-3">
-                    <p className="text-xs text-brand-text-secondary">قیمت مرجع</p>
-                    <p className="mt-2 font-bold text-brand-text-primary">{formatUsd(parentPrice)}</p>
-                </div>
-                <div className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 p-3">
-                    <p className="text-xs text-emerald-100">قیمت نهایی</p>
-                    <p className="mt-2 font-bold text-emerald-100">{formatUsd(finalPrice)}</p>
-                </div>
-            </div>
-
-            {product.levels?.length ? (
-                <div className="mt-4 space-y-2">
-                    {product.levels.map((level, index) => (
-                        <div key={`${level?.role}-${index}`} className="flex items-center justify-between rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
-                            <span className="text-brand-text-secondary">{level?.role}</span>
-                            <span className="font-medium text-brand-text-primary">{formatUsd(level.your_price)}</span>
-                        </div>
-                    ))}
-                </div>
-            ) : null}
-        </MagicCard>
+        <button
+            type="button"
+            onClick={() => onChange(!checked)}
+            className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition ${
+                checked ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : "border-zinc-400/20 bg-white/5 text-brand-text-secondary"
+            }`}
+        >
+            <Icon className="h-5 w-5" />
+            {label}
+        </button>
     );
+}
+
+function ReferenceProductCard({
+    definition,
+    draft,
+    onDraftChange,
+    onSave,
+    isSaving,
+}: {
+    definition: TradingProductDefinition;
+    draft: ProductDraft;
+    onDraftChange: (draft: ProductDraft) => void;
+    onSave: () => void;
+    isSaving: boolean;
+}) {
+    const setProductField = (field: keyof ProductDraft, value: string | boolean) => {
+        onDraftChange({ ...draft, [field]: value });
+    };
+
+    const setMarketField = (marketKey: TradingMarketKey, field: keyof MarketDraft, value: string | boolean) => {
+        onDraftChange({
+            ...draft,
+            markets: {
+                ...draft.markets,
+                [marketKey]: {
+                    ...draft.markets[marketKey],
+                    [field]: value,
+                },
+            },
+        });
+    };
+
+    return (
+        <Card className="overflow-hidden border border-silver-dark/20 bg-brand-surface/85 p-5 text-right shadow-deep-card backdrop-blur-xl">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                    <h2 className="text-xl font-black text-brand-text-primary">{definition.title}</h2>
+                    <p className="mt-2 text-sm text-brand-text-secondary">مدیریت قیمت خرید/فروش و فعال بودن بازارها</p>
+                </div>
+                <ActiveToggle checked={draft.is_active} onChange={(checked) => setProductField("is_active", checked)} label={draft.is_active ? "سکشن فعال" : "سکشن غیرفعال"} />
+            </div>
+
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+                <div>
+                    <Label className="mb-2 block">عیار</Label>
+                    <Input value={draft.purity} onChange={(event) => setProductField("purity", event.target.value)} dir="ltr" placeholder="999.9" />
+                </div>
+                <div>
+                    <Label className="mb-2 block">وزن</Label>
+                    <Input value={draft.weight} onChange={(event) => setProductField("weight", event.target.value)} dir="ltr" placeholder="1000" />
+                </div>
+                <div>
+                    <Label className="mb-2 block">واحد</Label>
+                    <Input value={draft.unit} onChange={(event) => setProductField("unit", event.target.value)} placeholder="گرم" />
+                </div>
+            </div>
+
+            <div className="mt-5 grid gap-3">
+                {definition.markets.map((marketKey) => {
+                    const market = getTradingMarket(marketKey);
+                    const marketDraft = draft.markets[marketKey];
+
+                    return (
+                        <div key={marketKey} className="rounded-2xl border border-white/10 bg-brand-base/45 p-4">
+                            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <h3 className="font-bold text-brand-text-primary">{market.label}</h3>
+                                    <p className="mt-1 text-xs text-brand-text-secondary">شناسه بخش: {marketDraft.base_price_id ?? "ثبت نشده"}</p>
+                                </div>
+                                <ActiveToggle checked={marketDraft.is_active} onChange={(checked) => setMarketField(marketKey, "is_active", checked)} label={marketDraft.is_active ? "بازار فعال" : "بازار غیرفعال"} />
+                            </div>
+
+                            <div className="grid gap-3 md:grid-cols-2">
+                                <div>
+                                    <Label className="mb-2 block">قیمت خرید</Label>
+                                    <Input value={marketDraft.buyPrice} onChange={(event) => setMarketField(marketKey, "buyPrice", event.target.value)} type="number" min="0" step="1" dir="ltr" />
+                                </div>
+                                <div>
+                                    <Label className="mb-2 block">قیمت فروش</Label>
+                                    <Input value={marketDraft.sellPrice} onChange={(event) => setMarketField(marketKey, "sellPrice", event.target.value)} type="number" min="0" step="1" dir="ltr" />
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="mt-5 flex justify-end">
+                <Button type="button" onClick={onSave} disabled={isSaving} className="cursor-pointer gap-2">
+                    <Save className="h-4 w-4" />
+                    {isSaving ? "در حال ذخیره..." : "ذخیره سکشن"}
+                </Button>
+            </div>
+        </Card>
+    );
+}
+
+export default function PricingPage() {
+    const { data: currentUser, isLoading } = useCurrentUserQuery();
+
+    if (isLoading) return <LoadingState />;
+
+    if (!currentUser || !canViewPricingTools(currentUser)) {
+        return <DeniedState />;
+    }
+
+    return <PricingWorkspace key={currentUser.id} currentUser={currentUser} />;
 }
 
 function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
     const queryClient = useQueryClient();
     const createProductMutation = useCreateProductMutation();
     const updateProductMutation = useUpdateProductMutation();
-    const deleteProductMutation = useDeleteProductMutation();
     const setBasePriceMutation = useSetBasePriceMutation();
     const updateBasePriceMutation = useUpdateBasePriceMutation();
     const setPricingRuleMutation = useSetPricingRuleMutation();
     const updatePricingRuleMutation = useUpdatePricingRuleMutation();
     const { data: apiProducts = [], isLoading: isProductsLoading, isError: isProductsError } = useProductsQuery();
 
-    const [productDraft, setProductDraft] = useState<ProductDraft>(EMPTY_PRODUCT_DRAFT);
-    const [selectedRuleProductId, setSelectedRuleProductId] = useState<string>("");
-    const [pricingRuleDraftState, setPricingRuleDraftState] = useState<PricingRuleDraftState | null>(null);
+    const [drafts, setDrafts] = useState<Record<TradingProductKey, ProductDraft>>(() => buildDrafts([]));
+    const [ruleDraft, setRuleDraft] = useState<RuleDraft>({ targetKey: "", type: "PERCENT", value: "" });
 
     const role = getNormalizedUserRole(currentUser);
     const isReference = role === "reference";
     const isWholesale = role === "wholesale";
-    const isSavingProduct = createProductMutation.isPending || updateProductMutation.isPending || setBasePriceMutation.isPending || updateBasePriceMutation.isPending;
+    const isSavingReference = createProductMutation.isPending || updateProductMutation.isPending || setBasePriceMutation.isPending || updateBasePriceMutation.isPending;
     const isSavingRule = setPricingRuleMutation.isPending || updatePricingRuleMutation.isPending;
 
-    const products = useMemo(() => apiProducts.map(normalizePricingProduct), [apiProducts]);
-    const activeProducts = useMemo(() => products.filter((product) => product.is_active), [products]);
-    const ruleProducts = useMemo(() => activeProducts.filter((product) => typeof product.id === "number" && Number.isFinite(product.id)), [activeProducts]);
-    const averageBasePrice = useMemo(() => {
-        if (!activeProducts.length) return 0;
-        return activeProducts.reduce((sum, product) => sum + product.basePrice, 0) / activeProducts.length;
-    }, [activeProducts]);
-    const selectedRuleProduct = useMemo(() => {
-        if (!isWholesale || !ruleProducts.length) return undefined;
-        return ruleProducts.find((product) => String(product.id) === selectedRuleProductId) ?? ruleProducts[0];
-    }, [isWholesale, ruleProducts, selectedRuleProductId]);
-    const effectiveSelectedRuleProductId = selectedRuleProduct ? String(selectedRuleProduct.id) : "";
-    const savedPricingRuleDraft = useMemo(
-        () => getRuleDraftFromProduct(currentUser, selectedRuleProduct),
-        [currentUser, selectedRuleProduct],
+    const ruleTargets = useMemo(() => buildRuleTargets(apiProducts), [apiProducts]);
+    const selectedRuleTarget = useMemo(
+        () => ruleTargets.find((target) => targetKey(target) === ruleDraft.targetKey) ?? ruleTargets[0],
+        [ruleDraft.targetKey, ruleTargets],
     );
-    const pricingRuleDraft =
-        pricingRuleDraftState?.productId === effectiveSelectedRuleProductId
-            ? pricingRuleDraftState.draft
-            : savedPricingRuleDraft;
 
-    const handleProductChange = (event: ChangeEvent<HTMLInputElement>) => {
-        const { name, value, type, checked } = event.target;
-        setProductDraft((prev) => ({
-            ...prev,
-            [name]: type === "checkbox" ? checked : value,
-        }));
+    useEffect(() => {
+        setDrafts(buildDrafts(apiProducts));
+    }, [apiProducts]);
+
+    useEffect(() => {
+        if (!selectedRuleTarget) return;
+        setRuleDraft((prev) => (prev.targetKey ? prev : { ...prev, targetKey: targetKey(selectedRuleTarget) }));
+    }, [selectedRuleTarget]);
+
+    const refreshProducts = async () => {
+        await queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] });
+        await queryClient.invalidateQueries({ queryKey: ["api", "products", "price"] });
     };
 
-    const handleRuleChange = (event: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        const { name, value } = event.target;
-        setPricingRuleDraftState({
-            productId: effectiveSelectedRuleProductId,
-            draft: { ...pricingRuleDraft, [name]: value },
-        });
-    };
-
-    const handleRuleProductChange = (event: ChangeEvent<HTMLSelectElement>) => {
-        setSelectedRuleProductId(event.target.value);
-        setPricingRuleDraftState(null);
-    };
-
-    const resetProductDraft = () => setProductDraft(EMPTY_PRODUCT_DRAFT);
-
-    const handleEditProduct = (product: PricingProduct) => {
-        setProductDraft({
-            id: product.id,
-            name: product.name,
-            basePrice: String(product.basePrice),
-            is_active: product.is_active,
-        });
-    };
-
-    const handleProductSubmit = async (event: FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-        const name = productDraft.name.trim();
-        const basePrice = parseMoney(productDraft.basePrice);
-
-        if (!name || !Number.isFinite(basePrice) || basePrice < 0) {
-            toast.error("نام محصول و قیمت دلاری معتبر را وارد کنید");
-            return;
-        }
+    const handleSaveProduct = async (definition: TradingProductDefinition) => {
+        const draft = drafts[definition.key];
+        const productPayload = {
+            name: definition.title,
+            is_active: draft.is_active,
+            purity: draft.purity.trim() ? parseMoney(draft.purity) : null,
+            weight: draft.weight.trim() ? parseMoney(draft.weight) : null,
+            unit: draft.unit.trim(),
+        };
 
         try {
-            const existingProduct = products.find((product) => product.id === productDraft.id);
-            let savedProductId = existingProduct?.id;
+            let productId = draft.productId;
 
-            if (existingProduct) {
+            if (productId) {
                 await updateProductMutation.mutateAsync({
-                    productId: existingProduct.id,
-                    payload: { name, is_active: productDraft.is_active },
+                    productId,
+                    payload: productPayload,
                 });
-                await updateBasePriceMutation.mutateAsync({ product: existingProduct.id, price: basePrice });
             } else {
-                const savedProduct = await createProductMutation.mutateAsync({ name, is_active: productDraft.is_active });
-                savedProductId = savedProduct.id;
-                await setBasePriceMutation.mutateAsync({ product: savedProduct.id, price: basePrice });
+                const createdProduct = await createProductMutation.mutateAsync(productPayload);
+                productId = createdProduct.id;
             }
 
-            await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] }),
-                savedProductId
-                    ? queryClient.invalidateQueries({ queryKey: ["api", "products", "price", savedProductId] })
-                    : Promise.resolve(),
-            ]);
-            resetProductDraft();
-            toast.success("محصول و قیمت پایه ذخیره شد");
+            const marketMutations = definition.markets.flatMap((marketKey) => {
+                const marketDraft = draft.markets[marketKey];
+                const market = getTradingMarket(marketKey);
+                const hasSavedSection = typeof marketDraft.base_price_id === "number";
+                const hasBuyPrice = hasInputValue(marketDraft.buyPrice);
+                const hasSellPrice = hasInputValue(marketDraft.sellPrice);
+                const shouldPersistMarket = hasSavedSection || marketDraft.is_active || hasBuyPrice || hasSellPrice;
+
+                if (!shouldPersistMarket) {
+                    return [];
+                }
+
+                if (!hasBuyPrice || !hasSellPrice) {
+                    throw new Error(`برای ${definition.title} - ${market.label} قیمت خرید و فروش را وارد کنید`);
+                }
+
+                const buyPrice = parseMoney(marketDraft.buyPrice);
+                const sellPrice = parseMoney(marketDraft.sellPrice);
+
+                if (!Number.isFinite(buyPrice) || buyPrice < 0 || !Number.isFinite(sellPrice) || sellPrice < 0) {
+                    throw new Error(`قیمت ${definition.title} - ${market.label} معتبر نیست`);
+                }
+
+                return [
+                    (hasSavedSection ? updateBasePriceMutation : setBasePriceMutation).mutateAsync({
+                        product: productId as number,
+                        market: marketDraft.marketValue,
+                        buy_price: buyPrice,
+                        price: sellPrice,
+                        is_active: marketDraft.is_active,
+                    }),
+                ];
+            });
+
+            await Promise.all(marketMutations);
+
+            await refreshProducts();
+            toast.success(`${definition.title} ذخیره شد`);
         } catch (error) {
-            const message = error instanceof Error ? error.message : "ذخیره محصول با خطا مواجه شد";
-            toast.error(message);
-        }
-    };
-
-    const handleDeleteProduct = async (product: PricingProduct) => {
-        try {
-            await deleteProductMutation.mutateAsync(product.id);
-            await queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] });
-
-            if (String(product.id) === effectiveSelectedRuleProductId) {
-                setSelectedRuleProductId("");
-            }
-
-            toast.success("محصول حذف شد");
-        } catch (error) {
-            const message = error instanceof Error ? error.message : "حذف محصول با خطا مواجه شد";
+            const message = error instanceof Error ? error.message : "ذخیره قیمت‌ها با خطا مواجه شد";
             toast.error(message);
         }
     };
 
     const handleRuleSubmit = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
-        const value = parseMoney(pricingRuleDraft.value);
 
-        if (!Number.isFinite(value) || value < 0) {
-            toast.error("مقدار قانون قیمت‌گذاری معتبر نیست");
+        if (!selectedRuleTarget) {
+            toast.error("یک محصول و بازار را انتخاب کنید");
             return;
         }
 
-        const productId = Number(effectiveSelectedRuleProductId);
-
-        if (!Number.isInteger(productId) || productId <= 0) {
-            toast.error("برای ثبت قانون قیمت‌گذاری، یک کالا را انتخاب کنید");
+        const value = parseMoney(ruleDraft.value);
+        if (!Number.isFinite(value) || value < 0) {
+            toast.error("مقدار قانون معتبر نیست");
             return;
         }
 
         const payload: PricingRuleRequest = {
-            product: productId,
-            type: pricingRuleDraft.type,
+            product_id: getProductId(selectedRuleTarget.product),
+            base_price_id: selectedRuleTarget.section.base_price_id,
+            type: ruleDraft.type,
             value,
         };
 
@@ -403,22 +441,15 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                 await setPricingRuleMutation.mutateAsync(payload);
             }
 
-            await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] }),
-                queryClient.invalidateQueries({ queryKey: ["api", "products", "price"] }),
-                queryClient.invalidateQueries({ queryKey: ["api", "products", "price", productId] }),
-            ]);
-            setPricingRuleDraftState(null);
-            toast.success("قانون قیمت‌گذاری این کالا ذخیره شد");
+            await refreshProducts();
+            toast.success("قانون قیمت‌گذاری ذخیره شد");
         } catch (error) {
             const message = error instanceof Error ? error.message : "ذخیره قانون قیمت‌گذاری با خطا مواجه شد";
             toast.error(message);
         }
     };
 
-    if (isProductsLoading) {
-        return <LoadingState />;
-    }
+    if (isProductsLoading) return <LoadingState />;
 
     if (isProductsError) {
         return (
@@ -426,11 +457,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                 <Card className="mx-auto max-w-3xl border border-amber-300/20 bg-brand-surface/80 p-8 text-right backdrop-blur-xl">
                     <h2 className="text-xl font-bold text-brand-text-primary">دریافت محصولات قیمت‌گذاری با خطا مواجه شد</h2>
                     <p className="mt-3 leading-7 text-brand-text-secondary">لطفا دوباره تلاش کنید.</p>
-                    <Button
-                        type="button"
-                        className="mt-5"
-                        onClick={() => queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] })}
-                    >
+                    <Button type="button" className="mt-5" onClick={() => queryClient.invalidateQueries({ queryKey: ["api", "products", "list"] })}>
                         تلاش دوباره
                     </Button>
                 </Card>
@@ -450,244 +477,163 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                     <div className="grid gap-6 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
                         <div>
                             <div className="inline-flex items-center gap-2 rounded-lg border border-silver-light/20 bg-silver-light/10 px-4 py-2 text-sm text-silver-light">
-                                <Sparkles className="h-4 w-4" />
+                                <SlidersHorizontal className="h-4 w-4" />
                                 {isReference ? "قیمت‌گذاری مرجع" : "قانون قیمت عمده‌فروش"}
                             </div>
-                            <h1 className="mt-4 text-2xl font-bold text-brand-text-primary sm:text-3xl">قیمت‌گذاری دلاری محصولات</h1>
+                            <h1 className="mt-4 text-2xl font-bold text-brand-text-primary sm:text-3xl">مدیریت قیمت تابلو</h1>
                             <p className="mt-3 max-w-3xl leading-8 text-brand-text-secondary">
                                 {isReference
-                                    ? "محصولات پایه و قیمت دلاری مرجع از این بخش ثبت می‌شوند."
-                                    : "قیمت تک‌فروش‌های زیرمجموعه بر اساس قانون دلاری یا درصدی شما محاسبه می‌شود."}
+                                    ? "فقط ۵ آیتم اصلی تابلو مدیریت می‌شوند. برای هر آیتم می‌توانید سکشن کامل یا بازارهای تهران، امارات و ترکیه را فعال/غیرفعال کنید."
+                                    : "قانون شما روی قیمت مرجع هر محصول و بازار اعمال می‌شود و برای زیرمجموعه‌ها نمایش داده خواهد شد."}
                             </p>
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 rounded-lg border border-white/10 bg-brand-base/45 p-2">
                             <div className="rounded-lg bg-white/[0.04] px-3 py-3 text-center">
-                                <p className="text-xl font-bold text-brand-text-primary">{products.length}</p>
-                                <p className="mt-1 text-xs text-brand-text-secondary">محصول</p>
+                                <p className="text-xl font-bold text-brand-text-primary">۵</p>
+                                <p className="mt-1 text-xs text-brand-text-secondary">آیتم</p>
                             </div>
                             <div className="rounded-lg bg-white/[0.04] px-3 py-3 text-center">
-                                <p className="text-xl font-bold text-brand-text-primary">{activeProducts.length}</p>
-                                <p className="mt-1 text-xs text-brand-text-secondary">فعال</p>
+                                <p className="text-xl font-bold text-brand-text-primary">{ruleTargets.length}</p>
+                                <p className="mt-1 text-xs text-brand-text-secondary">بازار فعال</p>
                             </div>
                             <div className="rounded-lg bg-white/[0.04] px-3 py-3 text-center">
-                                <p className="text-lg font-bold text-silver-light">{formatUsd(averageBasePrice)}</p>
-                                <p className="mt-1 text-xs text-brand-text-secondary">میانگین</p>
+                                <p className="text-xl font-bold text-silver-light">{isReference ? "MASTER" : "RULE"}</p>
+                                <p className="mt-1 text-xs text-brand-text-secondary">حالت</p>
                             </div>
                         </div>
                     </div>
                 </motion.section>
 
-                <div className="grid gap-5 xl:grid-cols-[0.95fr_1.25fr]">
-                    {isReference ? (
-                        <motion.form
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.35, delay: 0.08 }}
-                            onSubmit={handleProductSubmit}
-                            className="space-y-5"
-                        >
-                            <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
-                                <div className="mb-5 flex items-center gap-2">
-                                    <PackagePlus className="h-5 w-5 text-silver-light" />
-                                    <h2 className="text-lg font-bold text-brand-text-primary">محصول مرجع</h2>
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <Label htmlFor="name" className="mb-2 block">
-                                            نام محصول
-                                        </Label>
-                                        <Input id="name" name="name" value={productDraft.name} onChange={handleProductChange} placeholder="Silver Bar Turkey 1kg" />
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="basePrice" className="mb-2 block">
-                                            قیمت پایه دلار
-                                        </Label>
-                                        <Input id="basePrice" name="basePrice" value={productDraft.basePrice} onChange={handleProductChange} type="number" min="0" step="0.01" dir="ltr" />
-                                    </div>
-                                    <label className="flex items-center justify-between rounded-lg border border-white/10 bg-brand-base/45 p-3 text-sm text-brand-text-primary">
-                                        محصول فعال باشد
-                                        <input
-                                            name="is_active"
-                                            type="checkbox"
-                                            checked={productDraft.is_active}
-                                            onChange={handleProductChange}
-                                            className="h-4 w-4 cursor-pointer accent-silver-light"
-                                        />
-                                    </label>
-                                </div>
-
-                                <div className="mt-5 grid grid-cols-2 gap-2">
-                                    <Button type="submit" disabled={isSavingProduct} className="gap-2 cursor-pointer">
-                                        <Save className="h-4 w-4" />
-                                        {productDraft.id ? "ذخیره" : "ثبت"}
-                                    </Button>
-                                    <button
-                                        type="button"
-                                        onClick={resetProductDraft}
-                                        className="inline-flex h-11 cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 text-sm font-medium text-brand-text-primary transition hover:bg-white/5"
-                                    >
-                                        پاک‌کردن
-                                    </button>
-                                </div>
-                            </Card>
-                        </motion.form>
-                    ) : null}
-
-                    {isWholesale ? (
-                        <motion.form
-                            initial={{ opacity: 0, y: 16 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ duration: 0.35, delay: 0.08 }}
-                            onSubmit={handleRuleSubmit}
-                            className="space-y-5"
-                        >
-                            <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
-                                <div className="mb-5 flex items-center gap-2">
-                                    <Calculator className="h-5 w-5 text-silver-light" />
-                                    <h2 className="text-lg font-bold text-brand-text-primary">قانون قیمت‌گذاری شما</h2>
-                                </div>
-
-                                <div className="grid gap-4 md:grid-cols-3">
-                                    <div>
-                                        <Label htmlFor="rule-product" className="mb-2 block">
-                                            کالا
-                                        </Label>
-                                        <select
-                                            id="rule-product"
-                                            value={effectiveSelectedRuleProductId}
-                                            onChange={handleRuleProductChange}
-                                            disabled={!ruleProducts.length}
-                                            className="flex h-11 w-full rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            <option value="">انتخاب کالا</option>
-                                            {ruleProducts.map((product) => (
-                                                <option key={product.id} value={String(product.id)}>
-                                                    {product.name}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <Label htmlFor="type" className="mb-2 block">
-                                            نوع افزایش
-                                        </Label>
-                                        <select
-                                            id="type"
-                                            name="type"
-                                            value={pricingRuleDraft.type}
-                                            onChange={handleRuleChange}
-                                            className="flex h-11 w-full rounded-lg border border-brand-border bg-brand-surface px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
-                                        >
-                                            <option value="PERCENT">درصدی</option>
-                                            <option value="FIXED">عدد ثابت دلار</option>
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <Label htmlFor="value" className="mb-2 block">
-                                            مقدار
-                                        </Label>
-                                        <Input id="value" name="value" value={pricingRuleDraft.value} onChange={handleRuleChange} type="number" min="0" step="0.01" dir="ltr" />
-                                    </div>
-                                </div>
-
-                                <div className="mt-5 flex justify-end">
-                                    <Button type="submit" disabled={isSavingRule || !effectiveSelectedRuleProductId} className="gap-2 cursor-pointer">
-                                        {pricingRuleDraft.type === "PERCENT" ? <Percent className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
-                                        {isSavingRule ? "در حال ذخیره..." : "ذخیره قانون"}
-                                    </Button>
-                                </div>
-                            </Card>
-                        </motion.form>
-                    ) : null}
-
-                    <motion.div
-                        initial={{ opacity: 0, y: 16 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.35, delay: 0.14 }}
-                        className={isReference || isWholesale ? "space-y-4" : "xl:col-span-2"}
-                    >
-                        <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
-                            <div className="mb-5 flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-2">
-                                    <Layers3 className="h-5 w-5 text-silver-light" />
-                                    <h2 className="text-lg font-bold text-brand-text-primary">محصولات قیمت‌گذاری شده</h2>
-                                </div>
-                                <span className="rounded-lg border border-white/10 bg-brand-base/45 px-3 py-1 text-xs text-brand-text-secondary">
-                                    USD
-                                </span>
-                            </div>
-
-                            {products.length ? (
-                                <div className="space-y-3">
-                                    {products.map((product) => (
-                                        <div key={product.id} className="rounded-lg border border-white/10 bg-brand-base/45 p-4">
-                                            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                                                <div>
-                                                    <h3 className="font-bold text-brand-text-primary">{product.name}</h3>
-                                                    <p className="mt-1 text-sm text-brand-text-secondary">
-                                                        قیمت پایه: <span className="font-semibold text-silver-light">{formatUsd(product.basePrice)}</span>
-                                                    </p>
-                                                </div>
-
-                                                {isReference ? (
-                                                    <div className="flex gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleEditProduct(product)}
-                                                            className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 text-sm text-brand-text-primary transition hover:bg-white/10"
-                                                        >
-                                                            <Edit3 className="h-4 w-4" />
-                                                            ویرایش
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDeleteProduct(product)}
-                                                            disabled={deleteProductMutation.isPending}
-                                                            className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 text-sm text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                            حذف
-                                                        </button>
-                                                    </div>
-                                                ) : null}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="grid min-h-52 place-items-center rounded-lg border border-dashed border-white/10 bg-brand-base/35 p-6 text-center text-brand-text-secondary">
-                                    <div>
-                                        <WalletCards className="mx-auto mb-3 h-9 w-9 text-silver-light/70" />
-                                        <p className="text-sm">هنوز محصولی ثبت نشده است.</p>
-                                    </div>
-                                </div>
-                            )}
-                        </Card>
-                    </motion.div>
-                </div>
-
-                <motion.section
-                    initial={{ opacity: 0, y: 16 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.35, delay: 0.2 }}
-                    className="grid gap-4 lg:grid-cols-3"
-                >
-                    {activeProducts.map((product) => (
-                        <ProductPricePanel key={product.id} product={product} rule={pricingRuleDraft} selectedRuleProductId={effectiveSelectedRuleProductId} />
-                    ))}
-                </motion.section>
+                {isReference ? (
+                    <div className="grid gap-5 xl:grid-cols-2">
+                        {TRADING_PRODUCTS.map((definition) => (
+                            <ReferenceProductCard
+                                key={definition.key}
+                                definition={definition}
+                                draft={drafts[definition.key]}
+                                onDraftChange={(draft) => setDrafts((prev) => ({ ...prev, [definition.key]: draft }))}
+                                onSave={() => void handleSaveProduct(definition)}
+                                isSaving={isSavingReference}
+                            />
+                        ))}
+                    </div>
+                ) : null}
 
                 {isWholesale ? (
-                    <Card className="border border-emerald-300/20 bg-emerald-400/10 p-4 text-right text-sm leading-7 text-emerald-50">
-                        <div className="flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4" />
-                            قانون قیمت‌گذاری به‌صورت جداگانه برای کالای انتخاب‌شده ذخیره می‌شود.
-                        </div>
-                    </Card>
+                    <form onSubmit={handleRuleSubmit} className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+                        <Card className="border border-silver-dark/20 bg-brand-surface/85 p-5 text-right shadow-deep-card backdrop-blur-xl">
+                            <div className="mb-5 flex items-center gap-2">
+                                <Calculator className="h-5 w-5 text-silver-light" />
+                                <h2 className="text-lg font-bold text-brand-text-primary">قانون قیمت‌گذاری شما</h2>
+                            </div>
+
+                            <div className="grid gap-4">
+                                <div>
+                                    <Label htmlFor="target" className="mb-2 block">محصول و بازار</Label>
+                                    <select
+                                        id="target"
+                                        value={ruleDraft.targetKey}
+                                        onChange={(event: ChangeEvent<HTMLSelectElement>) => setRuleDraft((prev) => ({ ...prev, targetKey: event.target.value }))}
+                                        className="flex h-11 w-full rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary outline-none transition focus:border-silver-light/70 focus:ring-2 focus:ring-silver-light/25"
+                                    >
+                                        {ruleTargets.map((target) => {
+                                            const market = getTradingMarket(target.marketKey);
+                                            return (
+                                                <option key={targetKey(target)} value={targetKey(target)}>
+                                                    {target.productDefinition.title} - {market.label}
+                                                </option>
+                                            );
+                                        })}
+                                    </select>
+                                </div>
+
+                                <div className="grid gap-3 md:grid-cols-2">
+                                    <div>
+                                        <Label htmlFor="type" className="mb-2 block">نوع افزایش</Label>
+                                        <select
+                                            id="type"
+                                            value={ruleDraft.type}
+                                            onChange={(event: ChangeEvent<HTMLSelectElement>) => setRuleDraft((prev) => ({ ...prev, type: event.target.value as PricingRuleType }))}
+                                            className="flex h-11 w-full rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary outline-none transition focus:border-silver-light/70 focus:ring-2 focus:ring-silver-light/25"
+                                        >
+                                            <option value="PERCENT">درصدی</option>
+                                            <option value="FIXED">عدد ثابت</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="value" className="mb-2 block">مقدار</Label>
+                                        <Input id="value" value={ruleDraft.value} onChange={(event) => setRuleDraft((prev) => ({ ...prev, value: event.target.value }))} type="number" min="0" step="0.01" dir="ltr" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="mt-5 flex justify-end">
+                                <Button type="submit" disabled={isSavingRule || !selectedRuleTarget} className="cursor-pointer gap-2">
+                                    {ruleDraft.type === "PERCENT" ? <Percent className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                                    {isSavingRule ? "در حال ذخیره..." : "ذخیره قانون"}
+                                </Button>
+                            </div>
+                        </Card>
+
+                        <Card className="border border-emerald-300/20 bg-emerald-400/10 p-5 text-right text-emerald-50">
+                            <div className="flex items-start gap-3">
+                                <CheckCircle2 className="mt-1 h-5 w-5" />
+                                <div>
+                                    <h3 className="font-bold">پیش‌نمایش قیمت مرجع</h3>
+                                    {selectedRuleTarget ? (
+                                        <div className="mt-4 grid gap-3 md:grid-cols-2">
+                                            <div className="rounded-xl border border-white/10 bg-white/10 p-4">
+                                                <p className="text-xs text-emerald-100/80">خرید فعلی</p>
+                                                <p className="mt-2 text-2xl font-black">{formatMoney(selectedRuleTarget.section.buy_price)}</p>
+                                            </div>
+                                            <div className="rounded-xl border border-white/10 bg-white/10 p-4">
+                                                <p className="text-xs text-emerald-100/80">فروش فعلی</p>
+                                                <p className="mt-2 text-2xl font-black">{formatMoney(selectedRuleTarget.section.sell_price)}</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <p className="mt-3 text-sm leading-7">برای ثبت قانون ابتدا یک بازار فعال توسط مرجع لازم است.</p>
+                                    )}
+                                </div>
+                            </div>
+                        </Card>
+                    </form>
                 ) : null}
+
+                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
+                    <div className="mb-5 flex items-center gap-2">
+                        <Layers3 className="h-5 w-5 text-silver-light" />
+                        <h2 className="text-lg font-bold text-brand-text-primary">نمای کلی بازارهای فعال</h2>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {ruleTargets.length ? (
+                            ruleTargets.map((target) => {
+                                const market = getTradingMarket(target.marketKey);
+                                return (
+                                    <div key={targetKey(target)} className="rounded-2xl border border-white/10 bg-brand-base/45 p-4">
+                                        <p className="font-bold text-brand-text-primary">{target.productDefinition.title}</p>
+                                        <p className="mt-1 text-xs text-brand-text-secondary">{market.label}</p>
+                                        <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                                            <div className="rounded-xl bg-white/[0.04] p-3">
+                                                <p className="text-brand-text-secondary">خرید</p>
+                                                <p className="mt-1 font-bold text-brand-text-primary">{formatMoney(target.section.buy_price)}</p>
+                                            </div>
+                                            <div className="rounded-xl bg-white/[0.04] p-3">
+                                                <p className="text-brand-text-secondary">فروش</p>
+                                                <p className="mt-1 font-bold text-brand-text-primary">{formatMoney(target.section.sell_price)}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })
+                        ) : (
+                            <div className="rounded-2xl border border-dashed border-white/10 bg-brand-base/35 p-6 text-center text-brand-text-secondary md:col-span-2 xl:col-span-3">
+                                بازار فعالی برای نمایش وجود ندارد.
+                            </div>
+                        )}
+                    </div>
+                </Card>
             </div>
         </div>
     );

@@ -11,6 +11,9 @@ export type ApiProduct = {
     id: number;
     /** Human‑readable name of the product. */
     name: string;
+    purity?: number | null;
+    weight?: number | null;
+    unit?: string;
     /** Flag indicating whether the product is active. */
     is_active?: boolean;
     /** ISO 8601 timestamp at which the product was created. */
@@ -32,9 +35,25 @@ export type PriceTreeLevel = {
     [key: string]: unknown;
 };
 
+export type ProductPriceSection = {
+    base_price_id: number;
+    market: string;
+    is_active: boolean;
+    base_buy_price: number;
+    base_sell_price: number;
+    buy_price: number | null;
+    sell_price: number | null;
+    final_price: number | null;
+    [key: string]: unknown;
+};
+
 export type ProductPriceTreeDetail = ApiProduct & {
-    final_price: number;
-    levels: PriceTreeLevel[];
+    product_id?: number;
+    prices?: ProductPriceSection[];
+    buy_price?: number | null;
+    sell_price?: number | null;
+    final_price?: number | null;
+    levels?: PriceTreeLevel[];
 };
 
 export type GetProductsResponse = {
@@ -47,7 +66,10 @@ export type GetProductsResponse = {
  */
 export interface ProductBasePriceRequest {
     product: number;
+    market: string;
+    buy_price: number;
     price: number;
+    is_active?: boolean;
 }
 
 /**
@@ -58,7 +80,10 @@ export interface ProductBasePriceRequest {
 export type ProductBasePriceResponse = {
     id?: number;
     product: number;
+    market?: string;
+    buy_price?: number;
     price: number;
+    is_active?: boolean;
     created_at?: string;
     updated_at?: string;
     [key: string]: unknown;
@@ -68,9 +93,11 @@ export type ProductBasePriceResponse = {
  * Request payload for overriding a product’s price for a specific user.
  */
 export interface ProductPriceOverrideRequest {
-    product: number;
+    product_id: number;
+    base_price?: number;
+    base_price_id?: number;
     /** Identifier of the user for whom the price is being overridden. */
-    user: string;
+    user_id: string;
     price: number;
 }
 
@@ -82,6 +109,7 @@ export interface ProductPriceOverrideRequest {
 export type ProductPriceOverrideResponse = {
     id?: number;
     product: number;
+    base_price?: number | null;
     user: string;
     price: number;
     created_at?: string;
@@ -101,7 +129,8 @@ export type PricingRuleType = "PERCENT" | "FIXED";
  */
 export interface PricingRuleRequest {
     /** Product identifier that this pricing rule belongs to. */
-    product: number;
+    product_id: number;
+    base_price_id?: number | null;
     type: PricingRuleType;
     value: number;
 }
@@ -112,7 +141,9 @@ export interface PricingRuleRequest {
  */
 export type PricingRuleResponse = {
     id?: number;
-    product: number;
+    product?: number;
+    product_id?: number;
+    base_price_id?: number | null;
     type: PricingRuleType;
     value: number;
     created_at?: string;
@@ -127,8 +158,10 @@ export type PricingRuleResponse = {
  * hierarchical roles. Unknown keys are preserved for forward compatibility.
  */
 export interface ProductPriceResponse {
-    parent_price: number;
-    final_price: number;
-    levels: PriceTreeLevel[];
+    parent_price: number | null;
+    buy_price: number | null;
+    sell_price: number | null;
+    final_price: number | null;
+    levels?: PriceTreeLevel[];
     [key: string]: unknown;
 }

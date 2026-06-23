@@ -12,6 +12,8 @@ import type {
     PhoneRegisterResponse,
     PhoneSendOtpRequest,
     PhoneSendOtpResponse,
+    PhoneVerifyOtpRequest,
+    PhoneVerifyOtpResponse,
     TokenRefreshRequest,
     TokenRefreshResponse,
 } from "@/types/api/auth";
@@ -20,7 +22,6 @@ const MOBILE_USERNAME_REGEX = /^(\+98|0)?9\d{9}$/;
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const OTP_CODE_REGEX = /^\d{6}$/;
-const BUSINESS_HANDLER_REGEX = /^[-a-zA-Z0-9_]+$/;
 const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
 
@@ -125,6 +126,10 @@ function validatePhoneLoginPayload(payload: PhoneLoginRequest): void {
     validateOtpCode(payload.code);
 }
 
+function validatePhoneVerifyOtpPayload(payload: PhoneVerifyOtpRequest): void {
+    validatePhoneLoginPayload(payload);
+}
+
 function validatePhoneRegisterPayload(payload: PhoneRegisterRequest): void {
     validateMobile(payload.username, "شماره موبایل");
     validateOtpCode(payload.code);
@@ -133,13 +138,9 @@ function validatePhoneRegisterPayload(payload: PhoneRegisterRequest): void {
     validateEmail(payload.email);
     validateIsoDate(payload.birth_date);
     assertRequired(payload.business_name, "نام کسب‌وکار");
-    assertRequired(payload.business_handler, "شناسه لینک اختصاصی");
-
-    if (!BUSINESS_HANDLER_REGEX.test(payload.business_handler.trim())) {
-        throw new Error("شناسه لینک اختصاصی فقط می‌تواند شامل حروف انگلیسی، عدد، خط تیره و آندرلاین باشد.");
-    }
-
     assertRequired(payload.address, "آدرس");
+    assertRequired(payload.province, "استان");
+    assertRequired(payload.city, "شهر");
     validateTelephone(payload.telephone);
     validateBusinessLogo(payload.business_logo);
 }
@@ -209,6 +210,7 @@ function appendFormValue(formData: FormData, key: string, value: string | File |
 function buildPhoneRegisterFormData(payload: PhoneRegisterRequest): FormData {
     const formData = new FormData();
     const parentBusinessHandler = normalizeBusinessPathSegment(payload.parent_business_handler || DEFAULT_PARENT_BUSINESS_HANDLER);
+    const businessHandler = (payload.business_handler || payload.business_name).trim();
 
     appendFormValue(formData, "username", normalizeMobileUsername(payload.username));
     appendFormValue(formData, "code", normalizeOtpCode(payload.code));
@@ -217,8 +219,10 @@ function buildPhoneRegisterFormData(payload: PhoneRegisterRequest): FormData {
     appendFormValue(formData, "email", payload.email);
     appendFormValue(formData, "birth_date", normalizeDigits(payload.birth_date));
     appendFormValue(formData, "business_name", payload.business_name);
-    appendFormValue(formData, "business_handler", normalizeBusinessPathSegment(payload.business_handler));
+    appendFormValue(formData, "business_handler", businessHandler);
     appendFormValue(formData, "address", payload.address);
+    appendFormValue(formData, "province", payload.province);
+    appendFormValue(formData, "city", payload.city);
     appendFormValue(formData, "telephone", normalizeDigits(payload.telephone));
     appendFormValue(formData, "business_logo", payload.business_logo);
     appendFormValue(formData, "parent_business_handler", parentBusinessHandler);
@@ -257,6 +261,21 @@ export async function phoneLogin(payload: PhoneLoginRequest): Promise<PhoneLogin
         return data;
     } catch (error) {
         throw new Error(getApiErrorMessage(error, "ورود با کد تایید با خطا مواجه شد."));
+    }
+}
+
+export async function verifyPhoneOtp(payload: PhoneVerifyOtpRequest): Promise<PhoneVerifyOtpResponse> {
+    try {
+        validatePhoneVerifyOtpPayload(payload);
+
+        const { data } = await axiosInstance.post<PhoneVerifyOtpResponse>("/api/phone/verify/", {
+            username: normalizeMobileUsername(payload.username),
+            code: normalizeOtpCode(payload.code),
+        });
+
+        return data;
+    } catch (error) {
+        throw new Error(getApiErrorMessage(error, "کد تایید معتبر نیست."));
     }
 }
 

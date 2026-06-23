@@ -23,6 +23,8 @@ export type PendingPhoneRegisterPayload = {
     business_name: string;
     business_handler: string;
     address: string;
+    province: string;
+    city: string;
     telephone: string;
     parent_business_handler?: string;
     business_logo?: StoredLogoUpload | null;
@@ -107,7 +109,7 @@ export async function savePendingPhoneRegisterPayload(payload: Omit<PendingPhone
         ...payload,
         username: normalizeMobileUsername(payload.username),
         birth_date: normalizeDigits(payload.birth_date),
-        business_handler: normalizeBusinessPathSegment(payload.business_handler),
+        business_handler: (payload.business_handler || payload.business_name).trim(),
         telephone: normalizeDigits(payload.telephone),
         parent_business_handler: normalizeBusinessPathSegment(payload.parent_business_handler || DEFAULT_PARENT_BUSINESS_HANDLER),
         business_logo: await toStoredLogoUpload(payload.business_logo),

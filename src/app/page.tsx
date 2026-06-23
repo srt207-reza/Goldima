@@ -1,473 +1,325 @@
 "use client";
 
-import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
+import { motion, type Variants } from "framer-motion";
+import { ArrowDown, ArrowUp, Banknote, Gem, RefreshCw } from "lucide-react";
+import { useProductsQuery } from "@/hooks/api";
 import {
-    Activity,
-    BadgeDollarSign,
-    BarChart3,
-    ChevronDown,
-    ChevronUp,
-    Clock3,
-    Gem,
-    Layers3,
-    Radio,
-    RefreshCw,
-    ShieldCheck,
-    Sparkles,
-    TrendingUp,
-    type LucideIcon,
-} from "lucide-react";
-import { useCurrentUserQuery, useProductsQuery } from "@/hooks/api";
-import { getBusinessLabel, getNormalizedUserRole } from "@/lib/user-role";
-import type { PriceTreeLevel, ProductPriceTreeDetail } from "@/types/api/product";
-import LOGO from "@/../public/assets/images/logo.png";
-import BULLION_IMAGE from "@/../public/assets/images/products/img1.webp";
+    findTradingMarket,
+    findTradingProduct,
+    TRADING_PRODUCTS,
+    type TradingMarketDefinition,
+    type TradingProductDefinition,
+} from "@/constants/trading-board";
+import type { ProductPriceSection, ProductPriceTreeDetail } from "@/types/api/product";
 
-type BoardProduct = ProductPriceTreeDetail & {
-    basePrice: number;
-    parentPrice: number;
-    finalPrice: number;
-    changeAmount: number;
-    changeRate: number;
-    currentLevel?: PriceTreeLevel;
+const REFRESH_INTERVAL_MS = 10_000;
+
+type BoardSection = ProductPriceSection & {
+    marketDefinition: TradingMarketDefinition;
 };
 
-const REFRESH_INTERVAL_MS = 8_000;
-const MAX_VISIBLE_PRODUCTS = 14;
+type BoardItem = {
+    definition: TradingProductDefinition;
+    product?: ProductPriceTreeDetail;
+    sections: BoardSection[];
+};
 
-function useNow() {
-    const [now, setNow] = useState(() => new Date());
+const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 18, scale: 0.98 },
+    visible: (index: number) => ({
+        opacity: 1,
+        y: 0,
+        scale: 1,
+        transition: {
+            delay: index * 0.08,
+            duration: 0.5,
+            ease: "easeOut",
+        },
+    }),
+};
 
-    useEffect(() => {
-        const timer = window.setInterval(() => setNow(new Date()), 1000);
-        return () => window.clearInterval(timer);
-    }, []);
-
-    return now;
+function toFiniteNumber(value: unknown): number {
+    return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-function formatNumber(value: number, maximumFractionDigits = 0): string {
-    return new Intl.NumberFormat("fa-IR", { maximumFractionDigits }).format(Number.isFinite(value) ? value : 0);
-}
-
-function formatPrice(value: number): string {
+function formatMoney(value: unknown): string {
     return new Intl.NumberFormat("fa-IR", {
-        maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
-    }).format(Number.isFinite(value) ? value : 0);
+        maximumFractionDigits: 0,
+    }).format(toFiniteNumber(value));
 }
 
-function formatSignedPrice(value: number): string {
-    const sign = value > 0 ? "+" : "";
-    return `${sign}${formatPrice(value)}`;
+function getUnitLabel(product: ProductPriceTreeDetail | undefined, definition: TradingProductDefinition): string {
+    if (definition.unitLabel) return definition.unitLabel;
+
+    const weight = product?.weight ? `${formatMoney(product.weight)} ${product.unit || ""}`.trim() : "";
+    return weight || "قیمت لحظه‌ای";
 }
 
-function formatTime(date: Date): string {
-    return new Intl.DateTimeFormat("fa-IR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-    }).format(date);
+function buildBoardItems(products: ProductPriceTreeDetail[]): BoardItem[] {
+    const productMap = new Map<string, ProductPriceTreeDetail>();
+
+    products.forEach((product) => {
+        const definition = findTradingProduct(product.name);
+        if (definition) productMap.set(definition.key, product);
+    });
+
+    return TRADING_PRODUCTS.map((definition) => {
+        const product = productMap.get(definition.key);
+        const activeSections = (product?.prices ?? [])
+            .map((section) => {
+                const marketDefinition = findTradingMarket(section.market);
+                return marketDefinition ? { ...section, marketDefinition } : null;
+            })
+            .filter((section): section is BoardSection => Boolean(section))
+            .filter((section) => section.is_active !== false)
+            .filter((section) => definition.markets.includes(section.marketDefinition.key))
+            .sort((a, b) => definition.markets.indexOf(a.marketDefinition.key) - definition.markets.indexOf(b.marketDefinition.key));
+
+        return {
+            definition,
+            product,
+            sections: activeSections,
+        };
+    }).filter((item) => item.product?.is_active !== false && item.sections.length > 0);
 }
 
-function formatDate(date: Date): string {
-    return new Intl.DateTimeFormat("fa-IR", {
-        weekday: "long",
-        day: "2-digit",
-        month: "long",
-    }).format(date);
+function FlagBadge({ market }: { market: TradingMarketDefinition }) {
+    const tone = {
+        tehran: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
+        uae: "border-sky-300/25 bg-sky-400/10 text-sky-100",
+        turkey: "border-red-300/25 bg-red-400/10 text-red-100",
+    }[market.key];
+
+    return (
+        <span className={`inline-flex h-7 min-w-10 items-center justify-center rounded-lg border px-2 text-[0.7rem] font-black tracking-wide ${tone}`}>
+            {market.code}
+        </span>
+    );
 }
 
-function formatUpdatedAt(timestamp: number, fallback: Date): string {
-    return formatTime(timestamp ? new Date(timestamp) : fallback);
-}
-
-function getLevels(product: ProductPriceTreeDetail): PriceTreeLevel[] {
-    return Array.isArray(product.levels) ? product.levels : [];
-}
-
-function getFiniteNumber(value: unknown, fallback = 0): number {
-    return typeof value === "number" && Number.isFinite(value) ? value : fallback;
-}
-
-function getBasePrice(product: ProductPriceTreeDetail): number {
-    const levels = getLevels(product);
-    const masterLevel = levels.find((level) => level.role?.toUpperCase() === "MASTER");
-    const firstLevel = levels[0];
-    return getFiniteNumber(masterLevel?.your_price, getFiniteNumber(firstLevel?.your_price, product.final_price));
-}
-
-function getParentPrice(product: ProductPriceTreeDetail, basePrice: number): number {
-    const levels = getLevels(product);
-    const lastLevel = levels[levels.length - 1];
-    return getFiniteNumber(lastLevel?.parent_price, basePrice);
-}
-
-function getCurrentLevel(product: ProductPriceTreeDetail): PriceTreeLevel | undefined {
-    const levels = getLevels(product);
-    return levels[levels.length - 1];
-}
-
-function normalizeBoardProduct(product: ProductPriceTreeDetail): BoardProduct {
-    const basePrice = getBasePrice(product);
-    const parentPrice = getParentPrice(product, basePrice);
-    const finalPrice = getFiniteNumber(product.final_price, parentPrice);
-    const changeAmount = finalPrice - basePrice;
-    const changeRate = basePrice > 0 ? (changeAmount / basePrice) * 100 : 0;
-
-    return {
-        ...product,
-        levels: getLevels(product),
-        basePrice,
-        parentPrice,
-        finalPrice,
-        changeAmount,
-        changeRate,
-        currentLevel: getCurrentLevel(product),
-    };
-}
-
-function getRuleLabel(product: BoardProduct): string {
-    const level = product.currentLevel;
-    if (level?.note === "override") return "دستی";
-    if (level?.rule_type === "PERCENT") return "درصدی";
-    if (level?.rule_type === "FIXED") return "ثابت";
-    return "مرجع";
-}
-
-function getRoleLabel(role: ReturnType<typeof getNormalizedUserRole>): string {
-    if (role === "reference") return "مرجع";
-    if (role === "wholesale") return "عمده فروش";
-    if (role === "retail") return "خرده فروش";
-    return "کاربر";
-}
-
-function MetricTile({
-    icon: Icon,
+function PriceLine({
     label,
     value,
-    tone = "silver",
+    currency,
+    trend,
 }: {
-    icon: LucideIcon;
     label: string;
-    value: string;
-    tone?: "silver" | "gold" | "green" | "rose";
+    value: number | null;
+    currency: string;
+    trend: "up" | "down";
 }) {
-    const toneClass = {
-        silver: "border-slate-200/15 bg-white/[0.045] text-slate-100",
-        gold: "border-amber-300/25 bg-amber-300/10 text-amber-100",
-        green: "border-emerald-300/25 bg-emerald-400/10 text-emerald-100",
-        rose: "border-rose-300/25 bg-rose-400/10 text-rose-100",
-    }[tone];
+    const Icon = trend === "up" ? ArrowUp : ArrowDown;
+    const tone = trend === "up" ? "text-emerald-300" : "text-rose-300";
 
     return (
-        <div className={`goldima-panel-sweep rounded-lg border p-4 ${toneClass}`}>
-            <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-bold text-slate-300">{label}</span>
-                <Icon className="h-5 w-5 shrink-0" />
+        <div className="grid grid-cols-[1.35rem_2.75rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg border border-white/5 bg-white/[0.035] px-3 py-2.5 text-sm shadow-inner shadow-black/10">
+            <Icon className={`h-3.5 w-3.5 ${tone}`} />
+            <span className="text-brand-text-secondary">{label}</span>
+            <span className="min-w-0 text-left font-black tabular-nums text-brand-text-primary goldima-price-glow" dir="ltr">
+                {formatMoney(value)}
+            </span>
+            <span className="text-[0.7rem] font-semibold text-silver-dark">{currency}</span>
+        </div>
+    );
+}
+
+function MarketBlock({ section, compact = false }: { section: BoardSection; compact?: boolean }) {
+    const market = section.marketDefinition;
+
+    return (
+        <div className="min-w-0">
+            <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_16px_rgba(110,231,183,0.7)]" />
+                    <h3 className={`${compact ? "text-sm" : "text-base"} truncate font-black text-brand-text-primary`}>
+                        {market.label}
+                    </h3>
+                </div>
+                <FlagBadge market={market} />
             </div>
-            <div className="mt-3 min-h-8 text-2xl font-black leading-none text-white lg:text-3xl" dir="ltr">
-                {value}
+
+            <div className="space-y-2">
+                <PriceLine label="خرید" value={section.buy_price} currency={market.currency} trend="down" />
+                <PriceLine label="فروش" value={section.sell_price ?? section.final_price} currency={market.currency} trend="up" />
             </div>
         </div>
     );
 }
 
-function PriceDelta({ product }: { product: BoardProduct }) {
-    const isUp = product.changeAmount >= 0;
-    const Icon = isUp ? ChevronUp : ChevronDown;
+function ProductMark({ type }: { type: "silver" | "cash" | "transfer" }) {
+    if (type === "silver") {
+        return (
+            <div className="relative grid h-12 w-16 shrink-0 place-items-center rounded-xl border border-silver-light/20 bg-gradient-to-br from-white/15 via-silver-dark/10 to-white/5 shadow-silver-glow">
+                <div className="absolute inset-x-2 top-2 h-px bg-white/50" />
+                <Gem className="relative h-6 w-6 text-silver-light" />
+            </div>
+        );
+    }
 
     return (
-        <div
+        <div className="grid h-12 w-16 shrink-0 place-items-center rounded-xl border border-emerald-300/25 bg-emerald-400/10 text-emerald-200 shadow-emerald-glow">
+            <Banknote className="h-7 w-7" />
+        </div>
+    );
+}
+
+function ProductCard({
+    item,
+    variant = "normal",
+    index,
+}: {
+    item: BoardItem;
+    variant?: "normal" | "wide" | "compact";
+    index: number;
+}) {
+    const isSilver = item.definition.key.includes("silver");
+    const isTransfer = item.definition.key.includes("transfer");
+    const sections = item.sections;
+    const accent = isSilver ? "from-silver-light/30" : isTransfer ? "from-emerald-300/24" : "from-amber-300/24";
+
+    return (
+        <motion.article
+            custom={index}
+            variants={itemVariants}
+            initial="hidden"
+            animate="visible"
+            whileHover={{ y: -4, transition: { duration: 0.22 } }}
             className={[
-                "inline-flex h-11 min-w-24 items-center justify-center gap-1 rounded-lg border px-3 text-sm font-black",
-                isUp ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-rose-300/25 bg-rose-400/10 text-rose-200",
+                "goldima-panel-sweep group relative overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-card/78 text-right shadow-deep-card backdrop-blur-xl",
+                "transition-colors duration-300 hover:border-silver-light/35",
+                variant === "wide" ? "min-h-[9.2rem] p-5 lg:p-6" : "min-h-[15rem] p-5",
             ].join(" ")}
-            dir="ltr"
         >
-            <Icon className="h-4 w-4" />
-            {formatNumber(Math.abs(product.changeRate), 1)}%
-        </div>
-    );
-}
-
-function ProductPriceRow({ product, index }: { product: BoardProduct; index: number }) {
-    return (
-        <div
-            className="goldima-row-reveal grid min-h-20 grid-cols-[3rem_minmax(0,1.15fr)_minmax(7rem,0.75fr)_minmax(8rem,0.9fr)_6rem] items-center gap-3 border-b border-white/8 px-4 py-3 last:border-b-0 max-md:grid-cols-[2.5rem_minmax(0,1fr)_minmax(7rem,0.8fr)]"
-            style={{ animationDelay: `${index * 70}ms` }}
-        >
-            <div className="grid h-10 w-10 place-items-center rounded-lg border border-white/10 bg-white/[0.05] text-sm font-black text-slate-200">
-                {formatNumber(index + 1)}
+            <div className={`pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-l ${accent} via-white/45 to-transparent`} />
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.055),transparent_36%,rgba(255,255,255,0.025))]" />
+            <div className="pointer-events-none absolute -bottom-12 -left-8 text-[9rem] font-black leading-none text-white/[0.035]">
+                {isSilver ? "AG" : isTransfer ? "FX" : "$"}
             </div>
 
-            <div className="min-w-0">
-                <div className="truncate text-xl font-black text-white lg:text-2xl">{product.name}</div>
-                <div className="mt-1 flex items-center gap-2 text-xs font-bold text-slate-400">
-                    <Layers3 className="h-3.5 w-3.5 text-amber-200" />
-                    <span>{getRuleLabel(product)}</span>
-                </div>
-            </div>
-
-            <div className="text-left max-md:hidden">
-                <div className="text-xs font-bold text-slate-400">قیمت مرجع</div>
-                <div className="mt-1 text-lg font-bold text-slate-200" dir="ltr">
-                    {formatPrice(product.basePrice)}
-                </div>
-            </div>
-
-            <div className="text-left">
-                <div className="text-xs font-bold text-amber-100">قیمت نهایی</div>
-                <div className="mt-1 text-2xl font-black text-amber-100 drop-shadow-[0_0_18px_rgba(251,191,36,0.25)]" dir="ltr">
-                    {formatPrice(product.finalPrice)}
-                </div>
-            </div>
-
-            <div className="justify-self-end max-md:hidden">
-                <PriceDelta product={product} />
-            </div>
-        </div>
-    );
-}
-
-function PriceTicker({ products }: { products: BoardProduct[] }) {
-    if (!products.length) return null;
-
-    const tickerProducts = [...products, ...products];
-
-    return (
-        <div className="overflow-hidden rounded-lg border border-amber-300/20 bg-black/40 py-3 shadow-[0_18px_60px_rgba(0,0,0,0.26)]">
-            <div className="goldima-price-ticker flex w-max items-center gap-10 px-4">
-                {tickerProducts.map((product, index) => (
-                    <div key={`${product.id}-${index}`} className="flex items-center gap-3 whitespace-nowrap">
-                        <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,0.65)]" />
-                        <span className="text-sm font-bold text-slate-300">{product.name}</span>
-                        <span className="font-mono text-xl font-black text-amber-100" dir="ltr">
-                            {formatPrice(product.finalPrice)}
-                        </span>
-                        <span className="text-xs font-bold text-slate-500">USD</span>
+            <div className="relative z-10 flex h-full flex-col gap-5">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                        <p className="text-xs font-semibold leading-6 text-brand-text-secondary">{getUnitLabel(item.product, item.definition)}</p>
+                        <h2 className="mt-1 truncate text-xl font-black text-brand-text-primary sm:text-2xl">
+                            {item.definition.title}
+                        </h2>
                     </div>
-                ))}
+                    <ProductMark type={isSilver ? "silver" : isTransfer ? "transfer" : "cash"} />
+                </div>
+
+                <div
+                    className={[
+                        "grid flex-1 gap-4",
+                        variant === "wide"
+                            ? "grid-cols-1 lg:grid-cols-3"
+                            : sections.length > 1
+                              ? "grid-cols-1 md:grid-cols-2"
+                              : "grid-cols-1",
+                    ].join(" ")}
+                >
+                    {sections.map((section, sectionIndex) => (
+                        <motion.div
+                            key={`${section.base_price_id}-${section.market}`}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.18 + index * 0.06 + sectionIndex * 0.05, duration: 0.36 }}
+                            className={sectionIndex > 0 ? "border-r border-white/10 pr-4 max-md:border-r-0 max-md:pr-0" : ""}
+                        >
+                            <MarketBlock section={section} compact={variant === "wide"} />
+                        </motion.div>
+                    ))}
+                </div>
             </div>
-        </div>
+        </motion.article>
     );
 }
 
-function EmptyBoard() {
+function LoadingState() {
     return (
-        <div className="grid min-h-[48vh] place-items-center rounded-lg border border-dashed border-white/15 bg-white/[0.035] p-8 text-center">
-            <div>
-                <BadgeDollarSign className="mx-auto h-12 w-12 text-amber-200" />
-                <h2 className="mt-5 text-2xl font-black text-white">محصول فعالی برای نمایش وجود ندارد</h2>
-                <p className="mt-3 text-sm text-slate-400">محصولات قیمت گذاری شده در این تابلو نمایش داده می شوند.</p>
+        <div className="grid gap-5">
+            <div className="grid gap-5 xl:grid-cols-2">
+                <div className="h-60 animate-pulse rounded-2xl border border-silver-dark/15 bg-brand-card/70" />
+                <div className="h-60 animate-pulse rounded-2xl border border-silver-dark/15 bg-brand-card/70" />
+            </div>
+            <div className="h-36 animate-pulse rounded-2xl border border-silver-dark/15 bg-brand-card/70" />
+            <div className="grid gap-5 xl:grid-cols-2">
+                <div className="h-44 animate-pulse rounded-2xl border border-silver-dark/15 bg-brand-card/70" />
+                <div className="h-44 animate-pulse rounded-2xl border border-silver-dark/15 bg-brand-card/70" />
             </div>
         </div>
     );
 }
 
 export default function HomePage() {
-    const now = useNow();
-    const { data: currentUser } = useCurrentUserQuery();
     const {
         data: apiProducts = [],
-        dataUpdatedAt,
         isError,
-        isFetching,
         isLoading,
         refetch,
     } = useProductsQuery({
         refetchInterval: REFRESH_INTERVAL_MS,
+        refetchIntervalInBackground: true,
         refetchOnWindowFocus: true,
         staleTime: 0,
     });
 
-    const role = getNormalizedUserRole(currentUser);
-    const roleLabel = getRoleLabel(role);
-    const businessLabel = getBusinessLabel(currentUser);
-
-    const products = useMemo(
-        () =>
-            apiProducts
-                .filter((product) => product.is_active !== false)
-                .map(normalizeBoardProduct)
-                .sort((a, b) => b.finalPrice - a.finalPrice),
-        [apiProducts],
-    );
-
-    const featuredProduct = products[0];
-    const visibleProducts = products.slice(0, MAX_VISIBLE_PRODUCTS);
-    const averageFinalPrice = products.length
-        ? products.reduce((sum, product) => sum + product.finalPrice, 0) / products.length
-        : 0;
-    const totalPremium = products.reduce((sum, product) => sum + product.changeAmount, 0);
-    const marketTone = totalPremium >= 0 ? "green" : "rose";
+    const boardItems = useMemo(() => buildBoardItems(apiProducts), [apiProducts]);
+    const getItem = (key: string) => boardItems.find((item) => item.definition.key === key);
+    const turkeySilver = getItem("turkey_silver");
+    const uaeSilver = getItem("uae_silver");
+    const usdCash = getItem("usd_cash");
+    const tryTransfer = getItem("try_transfer");
+    const aedTransfer = getItem("aed_transfer");
 
     return (
-        <main className="relative min-h-[calc(100vh-5rem)] overflow-hidden bg-[#060708] text-white">
-            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,#060708_0%,#111827_46%,#17120a_100%)]" />
-            <div className="pointer-events-none absolute inset-0 opacity-[0.09] [background-image:linear-gradient(rgba(255,255,255,.8)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.8)_1px,transparent_1px)] [background-size:72px_72px]" />
-            <div className="goldima-live-scan pointer-events-none absolute inset-0" />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-l from-amber-200 via-white to-emerald-300" />
+        <main className="relative min-h-[calc(100vh-5rem)] overflow-hidden px-4 py-5 sm:px-6 lg:px-8">
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(226,232,240,0.06),transparent_28%,rgba(16,185,129,0.055)_62%,transparent)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(226,232,240,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(226,232,240,0.025)_1px,transparent_1px)] bg-[size:56px_56px] opacity-45" />
 
-            <div className="relative z-10 flex min-h-[calc(100vh-5rem)] flex-col gap-4 p-3 sm:p-4 lg:p-5 2xl:p-6">
-                <header className="goldima-panel-sweep grid gap-4 rounded-lg border border-white/10 bg-black/40 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-xl lg:grid-cols-[auto_1fr_auto] lg:items-center">
-                    <div className="flex min-w-0 items-center gap-4">
-                        <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-amber-200/25 p-1.5 shadow-[0_0_35px_rgba(251,191,36,0.18)]">
-                            <Image src={LOGO} alt="GOLDIMA" fill className="object-contain p-1" priority sizes="64px" />
-                        </div>
-                        <div className="min-w-0">
-                            <div className="flex items-center gap-2 text-xs font-black text-amber-200" dir="ltr">
-                                GOLDIMA LIVE
-                                <Radio className="h-4 w-4 animate-pulse text-emerald-300" />
-                            </div>
-                            <h1 className="mt-2 truncate text-3xl font-black leading-tight text-white lg:text-5xl">
-                                تابلوی لحظه ای قیمت محصولات
-                            </h1>
-                        </div>
-                    </div>
-
-                    <div className="grid gap-2 text-right lg:justify-self-center lg:text-center">
-                        <div className="text-sm font-bold text-slate-300">{businessLabel}</div>
-                        <div className="flex flex-wrap items-center gap-2 lg:justify-center">
-                            <span className="rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 py-1.5 text-xs font-bold text-amber-100">
-                                {roleLabel}
-                            </span>
-                            <span className="rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-100">
-                                قیمت زنده
-                            </span>
-                            <span className="rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-slate-300">
-                                بروزرسانی {formatUpdatedAt(dataUpdatedAt, now)}
-                            </span>
-                        </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 lg:justify-end">
-                        <div className="rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2 text-left">
-                            <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
-                                <Clock3 className="h-4 w-4 text-amber-200" />
-                                {formatDate(now)}
-                            </div>
-                            <div className="mt-3 font-mono text-xl font-black leading-none text-white" dir="ltr">
-                                {formatTime(now)}
-                            </div>
-                        </div>
-
-                        <button
-                            type="button"
-                            onClick={() => {
-                                void refetch();
-                            }}
-                            className="inline-flex h-16 w-16 items-center justify-center rounded-lg border border-white/10 bg-white/[0.04] text-amber-100 transition hover:border-amber-200/30 hover:bg-amber-200/10"
-                            title="بروزرسانی"
-                            aria-label="بروزرسانی قیمت ها"
-                        >
-                            <RefreshCw className={`h-5 w-5 ${isFetching ? "animate-spin" : ""}`} />
-                        </button>
-                    </div>
-                </header>
-
+            <div className="relative z-10 mx-auto w-full max-w-7xl">
                 {isLoading ? (
-                    <div className="grid flex-1 place-items-center rounded-lg border border-white/10 bg-black/35">
-                        <div className="text-center">
-                            <RefreshCw className="mx-auto h-10 w-10 animate-spin text-amber-200" />
-                            <p className="mt-4 text-lg font-bold text-slate-300">در حال دریافت قیمت ها</p>
-                        </div>
-                    </div>
+                    <LoadingState />
                 ) : isError ? (
-                    <div className="grid flex-1 place-items-center rounded-lg border border-rose-300/20 bg-rose-500/10 p-8 text-center">
+                    <div className="grid min-h-[28rem] place-items-center rounded-2xl border border-rose-300/20 bg-brand-card/80 p-8 text-center shadow-deep-card backdrop-blur-xl">
                         <div>
-                            <ShieldCheck className="mx-auto h-12 w-12 text-rose-100" />
-                            <h2 className="mt-5 text-2xl font-black text-white">دریافت قیمت ها با خطا مواجه شد</h2>
+                            <RefreshCw className="mx-auto h-10 w-10 text-rose-200" />
+                            <p className="mt-4 text-xl font-black text-brand-text-primary">دریافت قیمت‌ها با خطا مواجه شد</p>
                             <button
                                 type="button"
                                 onClick={() => {
                                     void refetch();
                                 }}
-                                className="mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-white/15 bg-white/10 px-5 text-sm font-bold text-white transition hover:bg-white/15"
+                                className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl border border-silver-light/20 bg-silver-light/10 px-5 font-bold text-brand-text-primary transition hover:bg-silver-light/15"
                             >
                                 <RefreshCw className="h-4 w-4" />
                                 تلاش دوباره
                             </button>
                         </div>
                     </div>
-                ) : products.length ? (
-                    <>
-                        <section className="grid flex-1 gap-4 xl:grid-cols-[0.78fr_1.22fr]">
-                            <div className="flex min-h-0 flex-col gap-4">
-                                <div className="goldima-panel-sweep overflow-hidden rounded-lg border border-amber-300/20 bg-[linear-gradient(180deg,rgba(251,191,36,0.16),rgba(15,23,42,0.62))] shadow-[0_30px_90px_rgba(0,0,0,0.32)]">
-                                    <div className="relative min-h-[25rem] p-5">
-                                        <div className="absolute inset-0 opacity-45">
-                                            <Image
-                                                src={BULLION_IMAGE}
-                                                alt=""
-                                                fill
-                                                className="object-cover"
-                                                priority
-                                                sizes="(min-width: 1280px) 40vw, 100vw"
-                                            />
-                                            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(0,0,0,0.82),rgba(0,0,0,0.36)_48%,rgba(0,0,0,0.82))]" />
-                                        </div>
+                ) : boardItems.length ? (
+                    <div className="grid content-start gap-5">
+                        <div className="grid gap-5 xl:grid-cols-2">
+                            {uaeSilver ? <ProductCard item={uaeSilver} index={0} /> : null}
+                            {turkeySilver ? <ProductCard item={turkeySilver} index={1} /> : null}
+                        </div>
 
-                                        <div className="relative z-10 flex h-full min-h-[22rem] flex-col justify-between">
-                                            <div className="flex items-start justify-between gap-4">
-                                                <div className="min-w-0">
-                                                    <div className="inline-flex items-center gap-2 rounded-lg border border-amber-200/25 bg-amber-200/10 px-3 py-2 text-sm font-black text-amber-100">
-                                                        <Sparkles className="h-5 w-5" />
-                                                        محصول شاخص
-                                                    </div>
-                                                    <h2 className="mt-5 truncate text-3xl font-black text-white lg:text-5xl">
-                                                        {featuredProduct.name}
-                                                    </h2>
-                                                </div>
-                                                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-lg border border-amber-200/25 bg-amber-200/10 text-amber-100">
-                                                    <Gem className="h-7 w-7" />
-                                                </div>
-                                            </div>
+                        {usdCash ? <ProductCard item={usdCash} variant="wide" index={2} /> : null}
 
-                                            <div className="rounded-lg border border-white/10 bg-black/45 p-5 backdrop-blur-md">
-                                                <div className="text-sm font-bold text-slate-300">قیمت نهایی</div>
-                                                <div className="mt-3 flex items-end justify-between gap-4">
-                                                    <div className="goldima-price-glow font-mono text-5xl font-black leading-none text-amber-100 lg:text-7xl" dir="ltr">
-                                                        {formatPrice(featuredProduct.finalPrice)}
-                                                    </div>
-                                                    <span className="mb-2 rounded-lg border border-white/10 bg-white/[0.06] px-3 py-2 text-sm font-black text-slate-300">
-                                                        USD
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                    <MetricTile icon={Layers3} label="محصول فعال" value={formatNumber(products.length)} tone="gold" />
-                                    <MetricTile icon={BarChart3} label="میانگین قیمت" value={formatPrice(averageFinalPrice)} />
-                                    <MetricTile icon={TrendingUp} label="بیشترین قیمت" value={formatPrice(featuredProduct.finalPrice)} tone="green" />
-                                    <MetricTile icon={Activity} label="اختلاف کل" value={formatSignedPrice(totalPremium)} tone={marketTone} />
-                                </div>
-                            </div>
-
-                            <div className="goldima-panel-sweep min-h-0 overflow-hidden rounded-lg border border-white/10 bg-black/35 shadow-[0_30px_90px_rgba(0,0,0,0.3)]">
-                                <div className="grid h-12 grid-cols-[3rem_minmax(0,1.15fr)_minmax(7rem,0.75fr)_minmax(8rem,0.9fr)_6rem] items-center gap-3 border-b border-amber-300/20 bg-white/[0.05] px-4 text-xs font-black text-slate-400 max-md:grid-cols-[2.5rem_minmax(0,1fr)_minmax(7rem,0.8fr)]">
-                                    <span>#</span>
-                                    <span>محصول</span>
-                                    <span className="text-left max-md:hidden">مرجع</span>
-                                    <span className="text-left text-amber-100">نهایی</span>
-                                    <span className="text-left max-md:hidden">تغییر</span>
-                                </div>
-
-                                <div className="max-h-[62vh] overflow-y-auto scrollbar-hide">
-                                    {visibleProducts.map((product, index) => (
-                                        <ProductPriceRow key={product.id} product={product} index={index} />
-                                    ))}
-                                </div>
-                            </div>
-                        </section>
-
-                        <PriceTicker products={products} />
-                    </>
+                        <div className="grid gap-5 xl:grid-cols-2">
+                            {aedTransfer ? <ProductCard item={aedTransfer} variant="compact" index={3} /> : null}
+                            {tryTransfer ? <ProductCard item={tryTransfer} variant="compact" index={4} /> : null}
+                        </div>
+                    </div>
                 ) : (
-                    <EmptyBoard />
+                    <div className="grid min-h-[28rem] place-items-center rounded-2xl border border-dashed border-silver-dark/30 bg-brand-card/70 p-8 text-center shadow-deep-card backdrop-blur-xl">
+                        <div>
+                            <p className="text-2xl font-black text-brand-text-primary">قیمت فعالی برای نمایش وجود ندارد</p>
+                            <p className="mt-3 text-sm font-semibold leading-7 text-brand-text-secondary">
+                                محصولات یا بازارهای غیرفعال در تابلو نمایش داده نمی‌شوند.
+                            </p>
+                        </div>
+                    </div>
                 )}
             </div>
         </main>

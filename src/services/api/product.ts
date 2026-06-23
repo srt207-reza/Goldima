@@ -20,6 +20,10 @@ function normalizeProductsResponse(response: GetProductsResponse | ProductPriceT
     return Array.isArray(response.data) ? response.data : [];
 }
 
+function unwrapData<T>(response: T | { data: T }): T {
+    return response && typeof response === "object" && "data" in response ? (response as { data: T }).data : (response as T);
+}
+
 /**
  * Retrieve all products with the effective price tree for the current user.
  * This is the pricing page's source of truth for the product list.
@@ -77,8 +81,8 @@ export async function deleteProduct(productId: number): Promise<void> {
  * @returns The server’s representation of the base price record.
  */
 export async function setBasePrice(payload: ProductBasePriceRequest): Promise<ProductBasePriceResponse> {
-    const { data } = await axiosInstance.post<ProductBasePriceResponse>("/api/products/base-price/", payload);
-    return data;
+    const { data } = await axiosInstance.post<ProductBasePriceResponse | { data: ProductBasePriceResponse }>("/api/products/base-price/", payload);
+    return unwrapData(data);
 }
 
 /**
@@ -89,8 +93,8 @@ export async function setBasePrice(payload: ProductBasePriceRequest): Promise<Pr
  * @returns The server’s representation of the base price record.
  */
 export async function updateBasePrice(payload: ProductBasePriceRequest): Promise<ProductBasePriceResponse> {
-    const { data } = await axiosInstance.put<ProductBasePriceResponse>("/api/products/base-price/", payload);
-    return data;
+    const { data } = await axiosInstance.put<ProductBasePriceResponse | { data: ProductBasePriceResponse }>("/api/products/base-price/", payload);
+    return unwrapData(data);
 }
 
 /**
@@ -102,8 +106,8 @@ export async function updateBasePrice(payload: ProductBasePriceRequest): Promise
  * @returns The server’s representation of the override record.
  */
 export async function setOverridePrice(payload: ProductPriceOverrideRequest): Promise<ProductPriceOverrideResponse> {
-    const { data } = await axiosInstance.post<ProductPriceOverrideResponse>("/api/products/override/", payload);
-    return data;
+    const { data } = await axiosInstance.post<ProductPriceOverrideResponse | { data: ProductPriceOverrideResponse }>("/api/products/override/", payload);
+    return unwrapData(data);
 }
 
 /**
@@ -114,8 +118,8 @@ export async function setOverridePrice(payload: ProductPriceOverrideRequest): Pr
  * @returns The server’s representation of the override record.
  */
 export async function updateOverridePrice(payload: ProductPriceOverrideRequest): Promise<ProductPriceOverrideResponse> {
-    const { data } = await axiosInstance.put<ProductPriceOverrideResponse>("/api/products/override/", payload);
-    return data;
+    const { data } = await axiosInstance.put<ProductPriceOverrideResponse | { data: ProductPriceOverrideResponse }>("/api/products/override/", payload);
+    return unwrapData(data);
 }
 
 /**
@@ -140,8 +144,8 @@ export async function getProductPrice(productId: number): Promise<ProductPriceRe
  * @returns The server’s representation of the pricing rule.
  */
 export async function setPricingRule(payload: PricingRuleRequest): Promise<PricingRuleResponse> {
-    const { data } = await axiosInstance.post<PricingRuleResponse>("/api/products/pricing-rule/", payload);
-    return data;
+    const { data } = await axiosInstance.post<PricingRuleResponse | { data: PricingRuleResponse }>("/api/products/pricing-rule/", payload);
+    return unwrapData(data);
 }
 
 /**
@@ -151,6 +155,6 @@ export async function setPricingRule(payload: PricingRuleRequest): Promise<Prici
  * @returns The server’s representation of the pricing rule.
  */
 export async function updatePricingRule(payload: PricingRuleRequest): Promise<PricingRuleResponse> {
-    const { data } = await axiosInstance.put<PricingRuleResponse>("/api/products/pricing-rule/", payload);
-    return data;
+    const { data } = await axiosInstance.put<PricingRuleResponse | { data: PricingRuleResponse }>("/api/products/pricing-rule/", payload);
+    return unwrapData(data);
 }
