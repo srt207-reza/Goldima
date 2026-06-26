@@ -374,10 +374,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                     "inline-flex cursor-pointer items-center gap-2 rounded-xl border border-silver-dark/20 bg-brand-base/50 px-3 py-2 text-[11px] font-semibold text-brand-text-primary transition hover:bg-white/5",
                                     sidebarCollapsed ? "h-10 w-10 justify-center px-0" : "",
                                 ].join(" ")}
-                                aria-label={sidebarCollapsed ? "باز کردن منو" : "جمع‌کردن منو"}
+                                aria-label={sidebarCollapsed ? "باز کردن منو" : "پنهان کردن منو"}
                             >
                                 {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-                                {!sidebarCollapsed && <span>جمع‌کردن</span>}
+                                {!sidebarCollapsed && <span>پنهان کردن</span>}
                             </button>
                         </div>
                     </div>
@@ -402,14 +402,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
                             <Menu className="h-5 w-5" />
                         </button>
 
-                        <div className="flex min-w-0 items-center gap-3">
+                        {/* <div className="flex min-w-0 items-center gap-3">
                             <BusinessLogoMark src={businessLogo} alt={businessLabel} />
 
                             <div className="min-w-0 text-right">
                                 <div className="truncate text-base font-bold text-white">{displayName}</div>
                                 <div className="truncate text-xs text-brand-text-secondary">{roleLabel}</div>
                             </div>
-                        </div>
+                        </div> */}
                     </div>
 
                     <button

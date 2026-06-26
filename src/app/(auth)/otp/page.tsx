@@ -15,7 +15,7 @@ import {
     type KeyboardEvent,
 } from "react";
 import toast from "react-hot-toast";
-import { CheckCircle2, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Edit, Edit2, Edit3, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AmbientBackground } from "@/components/ui/ambient-background";
@@ -416,7 +416,12 @@ export default function OtpPage() {
 
                     <div className="mt-6">
                         <h1 className="text-3xl font-bold tracking-wider text-brand-text-primary">کد تایید</h1>
-                        <p className="mt-3 text-sm font-medium text-silver-light" dir="ltr">{username}</p>
+                        <p
+                            onClick={() => router.replace(flow === "register" ? `/register?business_handler=${encodeURIComponent(parentBusinessHandler)}` : `/login?business_handler=${encodeURIComponent(parentBusinessHandler)}`)}
+                            className="mt-3 gap-2 inline-flex justify-center items-center cursor-pointer text-sm font-medium text-silver-light" dir="ltr">
+                            <Edit size={18} className="mb-1"/>
+                            {username}
+                        </p>
                     </div>
 
                     <form onSubmit={handleSubmit} className="mt-8 space-y-7">
@@ -475,21 +480,20 @@ export default function OtpPage() {
                         </Button>
                     </form>
 
-                    <div className="mt-5 flex items-center justify-between gap-3 text-xs font-semibold">
-                        <button
+                    <div className="mt-5 flex items-center justify-center gap-3 text-xs font-semibold">
+                        {/* <button
                             type="button"
-                            onClick={() => router.replace(flow === "register" ? `/register?business_handler=${encodeURIComponent(parentBusinessHandler)}` : `/login?business_handler=${encodeURIComponent(parentBusinessHandler)}`)}
                             className="cursor-pointer text-brand-text-secondary transition-colors hover:text-white"
                         >
                             اصلاح شماره
-                        </button>
+                        </button> */}
                         <button
                             type="button"
                             onClick={handleResendOtp}
                             disabled={sendOtpMutation.isPending || resendCooldown > 0}
                             className="cursor-pointer text-silver-light transition-colors hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            {sendOtpMutation.isPending ? "در حال ارسال..." : resendCooldown > 0 ? `ارسال مجدد (${resendCooldown.toLocaleString("fa-IR")} ثانیه)` : "ارسال مجدد"}
+                            {sendOtpMutation.isPending ? "در حال ارسال..." : resendCooldown > 0 ? `ارسال مجدد (${resendCooldown.toLocaleString("fa-IR")} ثانیه)` : "ارسال مجدد کد"}
                         </button>
                     </div>
                 </div>

@@ -1,18 +1,16 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, Suspense } from "react";
+import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { AmbientBackground } from "@/components/ui/ambient-background";
 import { ShineBorder } from "@/components/ui/shine-border";
-import { useCurrentUserQuery, useParentBusinessProfileQuery } from "@/hooks/api";
-import { getAccessToken } from "@/lib/auth-storage";
-import { buildBusinessUrl, DEFAULT_PARENT_BUSINESS_HANDLER, getReadableBusinessHandler, normalizeBusinessPathSegment } from "@/lib/business-path";
-import { resolveMediaUrl } from "@/lib/media-url";
+import { useCurrentUserQuery, useLogoutMutation, useParentBusinessProfileQuery } from "@/hooks/api";
+import { clearAuthTokens, getAccessToken, getRefreshToken } from "@/lib/auth-storage";
+import { DEFAULT_PARENT_BUSINESS_HANDLER, getReadableBusinessHandler, normalizeBusinessPathSegment } from "@/lib/business-path";
 import { getNormalizedUserRole } from "@/lib/user-role";
-import LOGO from "@/../public/assets/images/logo.png";
 
 const FloatingParticles = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -34,34 +32,6 @@ const FloatingParticles = () => (
         />
     </div>
 );
-
-function SponsorIdentity({
-    name,
-    logoUrl,
-    isLoading,
-}: {
-    name: string;
-    logoUrl?: string;
-    isLoading?: boolean;
-}) {
-    return (
-        <div className="mb-7 flex items-center gap-4 rounded-2xl border border-silver-dark/20 bg-brand-base/35 p-4">
-            {logoUrl ? (
-                <div className="relative flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-silver-light/20 bg-brand-base/60">
-                    <img src={logoUrl} alt={name} className="h-full w-full object-contain p-2" />
-                </div>
-            ) : (
-                <div className="relative h-14 w-20 shrink-0">
-                    <Image src={LOGO} alt="Goldima" fill className="object-contain" priority />
-                </div>
-            )}
-            <div className="min-w-0 text-right">
-                <p className="text-xs text-brand-text-secondary">مرجع ثبت‌نام</p>
-                <p className="truncate text-lg font-bold text-brand-text-primary">{isLoading ? "در حال دریافت..." : name}</p>
-            </div>
-        </div>
-    );
-}
 
 function OrganizationNotFound({ businessHandler }: { businessHandler: string }) {
     const readableBusinessHandler = getReadableBusinessHandler(businessHandler);
@@ -90,29 +60,33 @@ function PendingContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { data: currentUser, isFetching, refetch } = useCurrentUserQuery();
+    const logoutMutation = useLogoutMutation();
     const hasAuthToken = useMemo(() => Boolean(getAccessToken()), []);
 
-    const businessHandler = searchParams.get("business_handler") ?? currentUser?.business_handler ?? "";
-    const businessName = searchParams.get("business_name") ?? currentUser?.business_name ?? "";
     const parentBusinessHandler = normalizeBusinessPathSegment(searchParams.get("parent_business_handler") || "");
     const userStatus = String(currentUser?.status ?? "PENDING").toUpperCase();
     const currentRole = getNormalizedUserRole(currentUser);
     const isLinkedToParent = parentBusinessHandler !== "" && parentBusinessHandler !== DEFAULT_PARENT_BUSINESS_HANDLER;
     const parentProfileQuery = useParentBusinessProfileQuery(parentBusinessHandler);
-    const sponsorName = parentProfileQuery.data?.business_name || (isLinkedToParent ? getReadableBusinessHandler(parentBusinessHandler) : "Goldima");
-    const sponsorLogoUrl = useMemo(
-        () => resolveMediaUrl(parentProfileQuery.data?.business_logo),
-        [parentProfileQuery.data?.business_logo]
-    );
 
-    const normalizedBusinessHandler = useMemo(
-        () => normalizeBusinessPathSegment(businessHandler),
-        [businessHandler]
-    );
+    const handleLogout = async () => {
+        const refresh = getRefreshToken();
 
-    const businessPath = normalizedBusinessHandler || businessHandler;
-    const businessUrl = businessPath ? buildBusinessUrl(businessPath) : "—";
-    const internalBusinessHref = businessPath ? `/${businessPath}` : "/";
+        try {
+            if (refresh) {
+                await logoutMutation.mutateAsync({ refresh });
+            }
+
+            clearAuthTokens();
+            toast.success("با موفقیت خارج شدید");
+            router.replace("/login");
+        } catch (error) {
+            clearAuthTokens();
+            const message = error instanceof Error ? error.message : "خروج با خطا مواجه شد";
+            toast.error(message);
+            router.replace("/login");
+        }
+    };
 
     useEffect(() => {
         if (!hasAuthToken) return;
@@ -138,16 +112,14 @@ function PendingContent() {
     }
 
     return (
-        <Card className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 p-8 text-right shadow-2xl backdrop-blur-xl transition-all duration-500 hover:-translate-y-2 hover:shadow-silver-glow group">
-            <ShineBorder className="opacity-0 transition-opacity duration-700 group-hover:opacity-100" />
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-silver-light to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-700" />
+        <Card className="group relative w-full max-w-xl overflow-hidden rounded-[2rem] border border-silver-dark/20 bg-brand-surface/75 p-7 text-right shadow-2xl shadow-black/30 backdrop-blur-2xl transition-all duration-500 hover:-translate-y-1 hover:border-silver-light/25 hover:shadow-silver-glow sm:p-8">
+            <ShineBorder className="opacity-35 transition-opacity duration-700 group-hover:opacity-100" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(255,255,255,0.10),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.08),transparent_42%)]" />
+            <div className="pointer-events-none absolute -right-24 -top-24 h-48 w-48 rounded-full bg-silver-light/10 blur-3xl transition-transform duration-700 group-hover:scale-125" />
+            <div className="pointer-events-none absolute -bottom-28 -left-20 h-56 w-56 rounded-full bg-amber-300/8 blur-3xl" />
+            <div className="absolute left-8 right-8 top-0 h-px bg-gradient-to-r from-transparent via-silver-light/70 to-transparent opacity-70" />
 
-            <div className="mb-8">
-                <SponsorIdentity
-                    name={sponsorName}
-                    logoUrl={sponsorLogoUrl}
-                    isLoading={isLinkedToParent && parentProfileQuery.isFetching}
-                />
+            <div className="relative mb-8">
 
                 <div className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-amber-200 text-sm font-medium mb-5">
                     {userStatus === "REJECTED" ? "رد شده" : isFetching ? "در حال بررسی وضعیت..." : "در انتظار تایید مرجع"}
@@ -155,21 +127,26 @@ function PendingContent() {
 
                 <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-wider">
                     <span className="bg-gradient-to-l from-silver-light via-silver-metallic to-silver-light bg-clip-text text-transparent animate-pulse">
-                        {userStatus === "REJECTED" ? "درخواست شما رد شده است" : "ثبت‌نام با موفقیت انجام شد"}
+                        {userStatus === "REJECTED" ? "درخواست شما رد شده است" : "ثبت‌نام با موفقیت انجام شد!"}
                     </span>
                 </h1>
 
-                <p className="text-brand-text-secondary leading-8">
+                <p className="text-brand-text-secondary text-justify leading-8">
                     {userStatus === "REJECTED"
                         ? "برای فعال‌سازی حساب، با مرجع یا پشتیبانی سیستم هماهنگ کنید."
-                        : "اطلاعات شما برای بررسی ارسال شد. پس از تایید مرجع، دسترسی داشبورد و لینک اختصاصی فعال می‌شود."}
+                        : `
+                            پس از بررسی و تأیید مشخصات ثبت‌شده توسط بخش پشتیبانی، حساب کاربری فعال خواهد شد. در صورت وجود هرگونه نقص یا مغایرت در مشخصات ارسالی، جهت تکمیل مشخصات با شما تماس گرفته خواهد ‌شد.
+لطفاً در نظر داشته باشید که فرآیند بررسی و تأیید اطلاعات در روزهای کاری، حداکثر تا ۲۴ ساعت زمان‌بر می‌باشد.
+همچنین با هرگونه تغییر در وضعیت حساب کاربری، این صفحه به‌صورت خودکار به‌روزرسانی خواهد شد.
+در صورت نیاز به پشتیبانی، می‌توانید از طریق شماره ۰۹۱۲۱۱۱۲۲۳۳ با واحد پشتیبانی در ارتباط باشید.
+                        `}
                 </p>
             </div>
 
-            <div className="space-y-4 rounded-2xl border border-silver-dark/20 bg-brand-base/35 p-5">
+            {/* <div className="space-y-4 rounded-2xl border border-silver-dark/20 bg-brand-base/35 p-5">
                 <div>
                     <p className="text-xs text-brand-text-secondary mb-1">لینک اختصاصی شما</p>
-                    <div className="break-all text-silver-light font-semibold leading-7">
+                    <div dir="ltr" className="break-all text-silver-light font-semibold leading-7">
                         {businessUrl}
                     </div>
                 </div>
@@ -186,24 +163,21 @@ function PendingContent() {
                     <br />
                     {hasAuthToken ? "این صفحه هر چند ثانیه وضعیت حساب را دوباره از سرور بررسی می‌کند." : "برای بررسی خودکار وضعیت، ابتدا وارد حساب شوید."}
                 </div>
-            </div>
+            </div> */}
 
-            <div className="mt-8 grid gap-3">
+            <div className="mt-8 border-t border-silver-dark/15 pt-6">
                 <button
                     type="button"
-                    onClick={() => void refetch()}
-                    disabled={!hasAuthToken}
-                    className="inline-flex w-full cursor-pointer items-center justify-center rounded-xl border border-silver-dark/30 bg-white/[0.03] px-6 py-3 font-medium text-brand-text-primary transition-all duration-200 hover:border-silver-light/25 hover:bg-brand-hover/50 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={handleLogout}
+                    disabled={logoutMutation.isPending}
+                    aria-label="خروج از حساب کاربری"
+                    className="group/logout relative inline-flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-2xl border border-rose-300/20 bg-rose-400/10 px-6 py-6 text-sm font-bold text-transparent shadow-lg shadow-rose-950/10 transition-all duration-300 hover:-translate-y-0.5 hover:border-rose-200/35 hover:bg-rose-400/15 hover:shadow-rose-500/10 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    بررسی دوباره وضعیت
+                    <span className="pointer-events-none absolute inset-y-0 right-0 w-24 translate-x-full bg-gradient-to-l from-white/20 to-transparent blur-xl transition-transform duration-700 group-hover/logout:-translate-x-[420%]" />
+                    <span className="absolute inset-0 flex items-center justify-center text-rose-50">
+                        {logoutMutation.isPending ? "در حال خروج..." : "خروج از حساب کاربری"}
+                    </span>
                 </button>
-
-                <Link
-                    href={internalBusinessHref}
-                    className="inline-flex w-full cursor-pointer items-center justify-center rounded-xl border border-silver-dark/30 bg-white/[0.03] px-6 py-3 font-medium text-brand-text-primary transition-all duration-200 hover:border-silver-light/25 hover:bg-brand-hover/50"
-                >
-                    مشاهده لینک اختصاصی
-                </Link>
             </div>
         </Card>
     );

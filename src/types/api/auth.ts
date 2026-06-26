@@ -75,7 +75,7 @@ export type PhoneRegisterRequest = {
     province: string;
     city: string;
     telephone: string;
-    business_logo?: File | null;
+    business_logo?: File | string | null;
     parent_business_handler?: string;
 };
 

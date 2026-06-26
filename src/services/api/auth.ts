@@ -105,8 +105,8 @@ function validateIsoDate(value: string): void {
     }
 }
 
-function validateBusinessLogo(file?: File | null): void {
-    if (!file) return;
+function validateBusinessLogo(file?: File | string | null): void {
+    if (!file || typeof file === "string") return;
 
     if (!ALLOWED_LOGO_TYPES.has(file.type)) {
         throw new Error("فرمت لوگو باید PNG، JPG، WEBP یا SVG باشد.");
@@ -230,6 +230,32 @@ function buildPhoneRegisterFormData(payload: PhoneRegisterRequest): FormData {
     return formData;
 }
 
+function hasBusinessLogoFile(payload: PhoneRegisterRequest): boolean {
+    return typeof File !== "undefined" && payload.business_logo instanceof File;
+}
+
+function buildPhoneRegisterJsonPayload(payload: PhoneRegisterRequest) {
+    const parentBusinessHandler = normalizeBusinessPathSegment(payload.parent_business_handler || DEFAULT_PARENT_BUSINESS_HANDLER);
+    const businessHandler = (payload.business_handler || payload.business_name).trim();
+
+    return {
+        username: normalizeMobileUsername(payload.username),
+        code: normalizeOtpCode(payload.code),
+        first_name: payload.first_name.trim(),
+        last_name: payload.last_name.trim(),
+        email: payload.email.trim(),
+        birth_date: normalizeDigits(payload.birth_date.trim()),
+        business_name: payload.business_name.trim(),
+        business_handler: businessHandler,
+        address: payload.address.trim(),
+        province: payload.province.trim(),
+        city: payload.city.trim(),
+        telephone: normalizeDigits(payload.telephone.trim()),
+        business_logo: typeof payload.business_logo === "string" ? payload.business_logo.trim() || null : null,
+        parent_business_handler: parentBusinessHandler,
+    };
+}
+
 export async function sendPhoneOtp(payload: PhoneSendOtpRequest): Promise<PhoneSendOtpResponse> {
     try {
         validateSendOtpPayload(payload);
@@ -283,12 +309,19 @@ export async function phoneRegister(payload: PhoneRegisterRequest): Promise<Phon
     try {
         validatePhoneRegisterPayload(payload);
 
-        const formData = buildPhoneRegisterFormData(payload);
-        const { data } = await axiosInstance.post<PhoneRegisterResponse>("/api/phone/register/", formData, {
-            headers: {
-                "Content-Type": "multipart/form-data",
-            },
-        });
+        const hasLogoFile = hasBusinessLogoFile(payload);
+        const requestPayload = hasLogoFile ? buildPhoneRegisterFormData(payload) : buildPhoneRegisterJsonPayload(payload);
+        const { data } = await axiosInstance.post<PhoneRegisterResponse>(
+            "/api/phone/register/",
+            requestPayload,
+            hasLogoFile
+                ? {
+                      headers: {
+                          "Content-Type": "multipart/form-data",
+                      },
+                  }
+                : undefined
+        );
 
         const tokens = normalizeTokenPair(data);
         if (!tokens.refresh) {
