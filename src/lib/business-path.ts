@@ -1,4 +1,4 @@
-export const DEFAULT_PARENT_BUSINESS_HANDLER = "noros";
+export const DEFAULT_PARENT_BUSINESS_HANDLER = "goldima";
 
 function decodeHexUtf8(value: string): string | null {
     const compact = value.trim();

@@ -4,6 +4,7 @@ import type {
     ApiResponse,
     ApiUser,
     BusinessProfile,
+    BusinessProfileSearchResponse,
     BusinessProfileUpdatePayload,
     CurrentUser,
     CurrentUserResponse,
@@ -30,11 +31,21 @@ function hasData<T>(value: unknown): value is ApiResponse<T> {
 }
 
 function isBusinessProfile(value: unknown): value is BusinessProfile {
-    return Boolean(value && typeof value === "object" && "user" in value);
+    return Boolean(
+        value &&
+            typeof value === "object" &&
+            "business_name" in value &&
+            "business_handler" in value &&
+            "telephone" in value
+    );
+}
+
+function isBusinessProfileWrapper(value: unknown): value is BusinessProfile & { user: ApiUser } {
+    return Boolean(isBusinessProfile(value) && "user" in value && (value as BusinessProfile).user);
 }
 
 function normalizeUserItem(item: ApiUser | BusinessProfile): ManagedUser {
-    if (isBusinessProfile(item)) {
+    if (isBusinessProfileWrapper(item)) {
         return {
             ...item.user,
             business_profile_id: item.id,
@@ -43,6 +54,56 @@ function normalizeUserItem(item: ApiUser | BusinessProfile): ManagedUser {
             address: item.address,
             province: item.province,
             city: item.city,
+            telephone: item.telephone,
+            business_logo: item.business_logo,
+            business_profile_created_at: item.created_at,
+            business_profile_updated_at: item.updated_at,
+            business_profile_is_active: item.is_active,
+        };
+    }
+
+    const nestedBusiness =
+        item && typeof item === "object" && "business" in item && isBusinessProfile((item as ApiUser).business)
+            ? (item as ApiUser).business
+            : null;
+
+    if (nestedBusiness) {
+        return {
+            ...(item as ApiUser),
+            business_profile_id: nestedBusiness.id,
+            business_name: nestedBusiness.business_name,
+            business_handler: nestedBusiness.business_handler,
+            address: nestedBusiness.address,
+            province: nestedBusiness.province ?? "",
+            city: nestedBusiness.city ?? "",
+            telephone: nestedBusiness.telephone,
+            business_logo: nestedBusiness.business_logo,
+            business_profile_created_at: nestedBusiness.created_at,
+            business_profile_updated_at: nestedBusiness.updated_at,
+            business_profile_is_active: nestedBusiness.is_active,
+        };
+    }
+
+    if (isBusinessProfile(item)) {
+        return {
+            id: item.owner ?? item.id,
+            last_login: null,
+            first_name: "",
+            last_name: "",
+            email: "",
+            is_active: item.is_active,
+            date_joined: item.created_at,
+            username: "",
+            birth_date: null,
+            role: "",
+            status: "PENDING",
+            parent: item.owner ?? null,
+            business_profile_id: item.id,
+            business_name: item.business_name,
+            business_handler: item.business_handler,
+            address: item.address,
+            province: item.province ?? "",
+            city: item.city ?? "",
             telephone: item.telephone,
             business_logo: item.business_logo,
             business_profile_created_at: item.created_at,
@@ -70,7 +131,7 @@ export function normalizeCurrentUserResponse(response: CurrentUserResponse): Cur
 
     return {
         ...user,
-        business_profile_id: response.data.id,
+        business_profile_id: user.business_profile_id,
     };
 }
 
@@ -97,8 +158,19 @@ function normalizeUserResponse(response: UserResponse): ManagedUser {
  * @param userId Primary key or UUID of the user to fetch.
  */
 export async function getUserById(userId: string | number): Promise<ManagedUser> {
-    const { data } = await axiosInstance.get<UserResponse>(`/api/users/${userId}/`);
-    return normalizeUserResponse(data);
+    try {
+        const { data } = await axiosInstance.get<UserResponse>(`/api/users/${userId}/`);
+        return normalizeUserResponse(data);
+    } catch (error) {
+        const numericProfileId = Number(userId);
+
+        if (!Number.isInteger(numericProfileId) || numericProfileId <= 0) {
+            throw error;
+        }
+
+        const profile = await getBusinessProfile(numericProfileId);
+        return normalizeUserItem(profile);
+    }
 }
 
 /**
@@ -151,6 +223,21 @@ export async function getParentBusinessProfile(
     return data.data;
 }
 
+export async function searchBusinessProfiles(q: string): Promise<BusinessProfile[]> {
+    const query = q.trim();
+
+    if (!query) {
+        return [];
+    }
+
+    const { data } = await axiosInstance.get<BusinessProfileSearchResponse>(
+        "/api/business-profile/",
+        { params: { q: query } }
+    );
+
+    return Array.isArray(data.data) ? data.data : [];
+}
+
 function hasFileValue(payload: BusinessProfileUpdatePayload): boolean {
     return Object.values(payload).some((value) => typeof File !== "undefined" && value instanceof File);
 }
@@ -182,7 +269,15 @@ export async function updateBusinessProfile(
     profileId: number,
     payload: BusinessProfileUpdatePayload
 ): Promise<BusinessProfile> {
-    const requestPayload = hasFileValue(payload) ? buildBusinessProfileFormData(payload) : payload;
+    const sanitizedPayload: BusinessProfileUpdatePayload = {
+        ...payload,
+    };
+
+    if (typeof sanitizedPayload.business_logo === "string") {
+        delete sanitizedPayload.business_logo;
+    }
+
+    const requestPayload = hasFileValue(sanitizedPayload) ? buildBusinessProfileFormData(sanitizedPayload) : sanitizedPayload;
     const headers = requestPayload instanceof FormData ? { "Content-Type": "multipart/form-data" } : undefined;
 
     const { data } = await axiosInstance.put<ApiResponse<BusinessProfile> | BusinessProfile>(

@@ -64,7 +64,7 @@ export function canViewUserManagement(user?: ApiUser | null): boolean {
 
 export function canViewPricingTools(user?: ApiUser | null): boolean {
     const role = getNormalizedUserRole(user);
-    return role === "reference" || role === "wholesale";
+    return role === "reference" || role === "wholesale" || role === "retail";
 }
 
 export function getDisplayName(user?: ApiUser | null): string {

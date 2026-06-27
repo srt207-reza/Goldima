@@ -47,6 +47,8 @@ export type ProductPriceSection = {
     [key: string]: unknown;
 };
 
+export type PriceAppliesTo = "BUY" | "SELL";
+
 export type ProductPriceTreeDetail = ApiProduct & {
     product_id?: number;
     prices?: ProductPriceSection[];
@@ -99,6 +101,7 @@ export interface ProductPriceOverrideRequest {
     /** Identifier of the user for whom the price is being overridden. */
     user_id: string;
     price: number;
+    applies_to: PriceAppliesTo;
 }
 
 /**
@@ -112,6 +115,7 @@ export type ProductPriceOverrideResponse = {
     base_price?: number | null;
     user: string;
     price: number;
+    applies_to?: PriceAppliesTo;
     created_at?: string;
     updated_at?: string;
     [key: string]: unknown;
@@ -133,6 +137,7 @@ export interface PricingRuleRequest {
     base_price_id?: number | null;
     type: PricingRuleType;
     value: number;
+    applies_to: PriceAppliesTo;
 }
 
 /**
@@ -146,6 +151,7 @@ export type PricingRuleResponse = {
     base_price_id?: number | null;
     type: PricingRuleType;
     value: number;
+    applies_to?: PriceAppliesTo;
     created_at?: string;
     updated_at?: string;
     [key: string]: unknown;

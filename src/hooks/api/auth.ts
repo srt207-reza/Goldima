@@ -1,6 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import {
     logoutUser,
+    phoneEmployeeRegister,
     phoneLogin,
     phoneRegister,
     refreshAccessToken,
@@ -9,6 +10,8 @@ import {
 } from "@/services/api/auth";
 import type {
     LogoutRequest,
+    PhoneEmployeeRegisterRequest,
+    PhoneEmployeeRegisterResponse,
     PhoneLoginRequest,
     PhoneLoginResponse,
     PhoneRegisterRequest,
@@ -42,6 +45,12 @@ export function useVerifyPhoneOtpMutation() {
 export function usePhoneRegisterMutation() {
     return useMutation<PhoneRegisterResponse, Error, PhoneRegisterRequest>({
         mutationFn: phoneRegister,
+    });
+}
+
+export function usePhoneEmployeeRegisterMutation() {
+    return useMutation<PhoneEmployeeRegisterResponse, Error, PhoneEmployeeRegisterRequest>({
+        mutationFn: phoneEmployeeRegister,
     });
 }
 

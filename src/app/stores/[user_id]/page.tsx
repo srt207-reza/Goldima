@@ -42,8 +42,9 @@ type DetailFormState = {
     role: UserRole;
     parent: string;
     business_name: string;
-    business_handler: string;
     address: string;
+    province: string;
+    city: string;
     telephone: string;
 };
 
@@ -80,8 +81,9 @@ function getInitialFormState(user: ManagedUser): DetailFormState {
         role: user.role,
         parent: user.parent ?? "",
         business_name: user.business_name ?? "",
-        business_handler: user.business_handler ?? "",
         address: user.address ?? "",
+        province: user.province ?? "",
+        city: user.city ?? "",
         telephone: user.telephone ?? "",
     };
 }
@@ -221,10 +223,11 @@ function UserEditor({
                     profileId: user.business_profile_id,
                     payload: {
                         business_name: formData.business_name.trim(),
-                        business_handler: formData.business_handler.trim() || null,
+                        business_handler: formData.business_name.trim(),
                         address: formData.address.trim(),
+                        province: formData.province.trim(),
+                        city: formData.city.trim(),
                         telephone: formData.telephone.trim(),
-                        business_logo: user.business_logo,
                         is_active: user.business_profile_is_active ?? true,
                     },
                 });
@@ -404,10 +407,16 @@ function UserEditor({
                             <Input id="business_name" name="business_name" value={formData.business_name} onChange={handleChange} />
                         </div>
                         <div>
-                            <Label htmlFor="business_handler" className="mb-2 block">
-                                لینک اختصاصی
+                            <Label htmlFor="province" className="mb-2 block">
+                                استان
                             </Label>
-                            <Input id="business_handler" name="business_handler" value={formData.business_handler} onChange={handleChange} dir="ltr" />
+                            <Input id="province" name="province" value={formData.province} onChange={handleChange} />
+                        </div>
+                        <div>
+                            <Label htmlFor="city" className="mb-2 block">
+                                شهر
+                            </Label>
+                            <Input id="city" name="city" value={formData.city} onChange={handleChange} />
                         </div>
                         <div>
                             <Label htmlFor="telephone" className="mb-2 block">

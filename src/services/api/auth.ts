@@ -4,8 +4,12 @@ import { axiosInstance } from "@/lib/axios";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
 import type {
     AuthTokenPairLike,
+    AuthBusinessProfile,
+    AuthUserDetail,
     LogoutRequest,
     LogoutResponse,
+    PhoneEmployeeRegisterRequest,
+    PhoneEmployeeRegisterResponse,
     PhoneLoginRequest,
     PhoneLoginResponse,
     PhoneRegisterRequest,
@@ -145,6 +149,19 @@ function validatePhoneRegisterPayload(payload: PhoneRegisterRequest): void {
     validateBusinessLogo(payload.business_logo);
 }
 
+function validatePhoneEmployeeRegisterPayload(payload: PhoneEmployeeRegisterRequest): void {
+    validateMobile(payload.username, "شماره موبایل");
+    validateOtpCode(payload.code);
+    assertRequired(payload.first_name, "نام");
+    assertRequired(payload.last_name, "نام خانوادگی");
+    validateEmail(payload.email);
+    validateIsoDate(payload.birth_date);
+
+    if (!Number.isInteger(payload.business_id) || payload.business_id <= 0) {
+        throw new Error("شناسه فروشگاه معتبر نیست.");
+    }
+}
+
 function validateLogoutPayload(payload: LogoutRequest): void {
     assertRequired(payload.refresh, "refresh token");
 }
@@ -192,6 +209,105 @@ function normalizeTokenPair(data: unknown): AuthTokenPairLike {
     }
 
     throw new Error("پاسخ سرور برای توکن معتبر نیست.");
+}
+
+type RawAuthUser = Partial<AuthUserDetail> & {
+    id?: string | number;
+    business?: Partial<AuthBusinessProfile> | null;
+};
+
+function normalizeAuthUser(user: RawAuthUser): AuthUserDetail {
+    return {
+        id: String(user.id ?? ""),
+        username: String(user.username ?? ""),
+        first_name: String(user.first_name ?? ""),
+        last_name: String(user.last_name ?? ""),
+        email: String(user.email ?? ""),
+        birth_date: typeof user.birth_date === "string" ? user.birth_date : null,
+        role: String(user.role ?? ""),
+        status: String(user.status ?? ""),
+        parent: typeof user.parent === "string" ? user.parent : null,
+        is_employee: Boolean(user.is_employee),
+        last_login: typeof user.last_login === "string" ? user.last_login : null,
+        date_joined: typeof user.date_joined === "string" ? user.date_joined : undefined,
+    };
+}
+
+function normalizeAuthBusinessProfileFromUser(user: RawAuthUser): AuthBusinessProfile {
+    const business = user.business;
+
+    if (!business || typeof business !== "object") {
+        throw new Error("پاسخ سرور شامل اطلاعات فروشگاه نیست.");
+    }
+
+    return {
+        id: Number(business.id ?? 0),
+        user: normalizeAuthUser(user),
+        business_name: String(business.business_name ?? ""),
+        business_handler:
+            typeof business.business_handler === "string"
+                ? business.business_handler
+                : null,
+        address: String(business.address ?? ""),
+        province: String(business.province ?? ""),
+        city: String(business.city ?? ""),
+        telephone: String(business.telephone ?? ""),
+        business_logo:
+            typeof business.business_logo === "string"
+                ? business.business_logo
+                : null,
+        is_active:
+            typeof business.is_active === "boolean"
+                ? business.is_active
+                : true,
+        created_at: String(business.created_at ?? ""),
+        updated_at: String(business.updated_at ?? ""),
+    };
+}
+
+function normalizePhoneAuthResponse<
+    T extends
+        | PhoneLoginResponse
+        | PhoneRegisterResponse
+        | PhoneEmployeeRegisterResponse,
+>(data: unknown): T {
+    const tokens = normalizeTokenPair(data);
+
+    if (!tokens.refresh) {
+        throw new Error("توکن refresh در پاسخ ورود/ثبت‌نام دریافت نشد.");
+    }
+
+    const record =
+        data && typeof data === "object"
+            ? (data as Record<string, unknown>)
+            : {};
+
+    if (
+        record.user_profile &&
+        typeof record.user_profile === "object"
+    ) {
+        return {
+            ...(record as object),
+            access: tokens.access,
+            refresh: tokens.refresh,
+            user_profile: record.user_profile,
+        } as T;
+    }
+
+    if (record.user && typeof record.user === "object") {
+        const userProfile = normalizeAuthBusinessProfileFromUser(
+            record.user as RawAuthUser
+        );
+
+        return {
+            access: tokens.access,
+            refresh: tokens.refresh,
+            user: userProfile.user,
+            user_profile: userProfile,
+        } as T;
+    }
+
+    throw new Error("پاسخ ورود/ثبت‌نام سرور معتبر نیست.");
 }
 
 function appendFormValue(formData: FormData, key: string, value: string | File | null | undefined): void {
@@ -274,17 +390,12 @@ export async function phoneLogin(payload: PhoneLoginRequest): Promise<PhoneLogin
     try {
         validatePhoneLoginPayload(payload);
 
-        const { data } = await axiosInstance.post<PhoneLoginResponse>("/api/phone/login/", {
+        const { data } = await axiosInstance.post<unknown>("/api/phone/login/", {
             username: normalizeMobileUsername(payload.username),
             code: normalizeOtpCode(payload.code),
         });
 
-        const tokens = normalizeTokenPair(data);
-        if (!tokens.refresh) {
-            throw new Error("توکن refresh در پاسخ ورود دریافت نشد.");
-        }
-
-        return data;
+        return normalizePhoneAuthResponse<PhoneLoginResponse>(data);
     } catch (error) {
         throw new Error(getApiErrorMessage(error, "ورود با کد تایید با خطا مواجه شد."));
     }
@@ -311,7 +422,7 @@ export async function phoneRegister(payload: PhoneRegisterRequest): Promise<Phon
 
         const hasLogoFile = hasBusinessLogoFile(payload);
         const requestPayload = hasLogoFile ? buildPhoneRegisterFormData(payload) : buildPhoneRegisterJsonPayload(payload);
-        const { data } = await axiosInstance.post<PhoneRegisterResponse>(
+        const { data } = await axiosInstance.post<unknown>(
             "/api/phone/register/",
             requestPayload,
             hasLogoFile
@@ -323,14 +434,34 @@ export async function phoneRegister(payload: PhoneRegisterRequest): Promise<Phon
                 : undefined
         );
 
-        const tokens = normalizeTokenPair(data);
-        if (!tokens.refresh) {
-            throw new Error("توکن refresh در پاسخ ثبت‌نام دریافت نشد.");
-        }
-
-        return data;
+        return normalizePhoneAuthResponse<PhoneRegisterResponse>(data);
     } catch (error) {
         throw new Error(getApiErrorMessage(error, "ثبت‌نام با کد تایید با خطا مواجه شد."));
+    }
+}
+
+export async function phoneEmployeeRegister(
+    payload: PhoneEmployeeRegisterRequest
+): Promise<PhoneEmployeeRegisterResponse> {
+    try {
+        validatePhoneEmployeeRegisterPayload(payload);
+
+        const { data } = await axiosInstance.post<unknown>(
+            "/api/phone/employee/register/",
+            {
+                username: normalizeMobileUsername(payload.username),
+                code: normalizeOtpCode(payload.code),
+                first_name: payload.first_name.trim(),
+                last_name: payload.last_name.trim(),
+                email: payload.email.trim(),
+                birth_date: normalizeDigits(payload.birth_date.trim()),
+                business_id: payload.business_id,
+            }
+        );
+
+        return normalizePhoneAuthResponse<PhoneEmployeeRegisterResponse>(data);
+    } catch (error) {
+        throw new Error(getApiErrorMessage(error, "ثبت‌نام کارمند با خطا مواجه شد."));
     }
 }
 

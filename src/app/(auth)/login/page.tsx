@@ -97,13 +97,13 @@ const LogoIcon = ({
     logoUrl?: string;
     name: string;
 }) => (
-    <div className="group relative h-32 w-32">
+    <div className={`group relative h-32 w-32 ${logoUrl ? "mb-4" : ''}`}>
         {logoUrl ? (
             <div className="relative h-32 w-32 overflow-hidden rounded-3xl border border-silver-light/20 bg-brand-base/60 shadow-silver-glow transition-transform duration-700 group-hover:scale-105">
                 <img
                     src={logoUrl}
                     alt={name}
-                    className="h-full w-full object-contain p-4"
+                    className="h-full w-full object-cover"
                 />
             </div>
         ) : (
@@ -211,7 +211,7 @@ function LoginPageContent() {
         return (
             normalizeBusinessPathSegment(
                 params.get("business_handler") ||
-                    DEFAULT_PARENT_BUSINESS_HANDLER
+                DEFAULT_PARENT_BUSINESS_HANDLER
             ) || DEFAULT_PARENT_BUSINESS_HANDLER
         );
     }, [searchKey]);
@@ -379,7 +379,7 @@ function LoginPageContent() {
                     <h1 className="mb-2 text-4xl font-bold tracking-wider">
                         <span className="animate-pulse bg-gradient-to-l from-silver-light via-silver-metallic to-silver-light bg-clip-text text-transparent">
                             {parentProfileQuery.isFetching &&
-                            isLinkedToParent
+                                isLinkedToParent
                                 ? "در حال دریافت..."
                                 : sponsorName}
                         </span>

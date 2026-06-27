@@ -35,8 +35,9 @@ type ProfileFormState = {
     email: string;
     birth_date: string;
     business_name: string;
-    business_handler: string;
     address: string;
+    province: string;
+    city: string;
     telephone: string;
 };
 
@@ -85,8 +86,9 @@ function getInitialFormState(user: CurrentUser): ProfileFormState {
         email: user.email ?? "",
         birth_date: toDisplayDate(user.birth_date),
         business_name: user.business_name ?? "",
-        business_handler: user.business_handler ?? "",
         address: user.address ?? "",
+        province: user.province ?? "",
+        city: user.city ?? "",
         telephone: user.telephone ?? "",
     };
 }
@@ -98,8 +100,9 @@ function normalizeProfileFormState(state: ProfileFormState): ProfileFormState {
         email: state.email.trim(),
         birth_date: state.birth_date.trim(),
         business_name: state.business_name.trim(),
-        business_handler: state.business_handler.trim(),
         address: state.address.trim(),
+        province: state.province.trim(),
+        city: state.city.trim(),
         telephone: state.telephone.trim(),
     };
 }
@@ -126,11 +129,15 @@ function LoadingState() {
 function StatCard({ icon: Icon, label, value }: { icon: typeof UserRound; label: string; value: string }) {
     return (
         <MagicCard className="rounded-2xl bg-brand-base/45 p-4" withBorderBeam={false}>
-            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-lg border border-silver-dark/20 bg-silver-light/10 text-silver-light">
-                <Icon className="h-5 w-5" />
+            <div className="flex items-center gap-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-silver-dark/20 bg-silver-light/10 text-silver-light">
+                    <Icon className="h-5 w-5" />
+                </div>
+                <div>
+                    <p className="text-xs text-brand-text-secondary">{label}</p>
+                    <p className="mt-2 truncate text-sm font-semibold text-brand-text-primary">{value || "ثبت نشده"}</p>
+                </div>
             </div>
-            <p className="text-xs text-brand-text-secondary">{label}</p>
-            <p className="mt-2 truncate text-sm font-semibold text-brand-text-primary">{value || "ثبت نشده"}</p>
         </MagicCard>
     );
 }
@@ -210,10 +217,12 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                 profileId: currentUser.business_profile_id,
                 payload: {
                     business_name: formData.business_name.trim(),
-                    business_handler: formData.business_handler.trim() || null,
+                    business_handler: formData.business_name.trim(),
                     address: formData.address.trim(),
+                    province: formData.province.trim(),
+                    city: formData.city.trim(),
                     telephone: formData.telephone.trim(),
-                    business_logo: logoFile ?? currentUser.business_logo,
+                    ...(logoFile ? { business_logo: logoFile } : {}),
                     is_active: currentUser.business_profile_is_active ?? true,
                 },
             });
@@ -389,10 +398,16 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                             <Input id="business_name" name="business_name" value={formData.business_name} onChange={handleChange} />
                         </div>
                         <div>
-                            <Label htmlFor="business_handler" className="mb-2 block">
-                                لینک اختصاصی
+                            <Label htmlFor="province" className="mb-2 block">
+                                استان
                             </Label>
-                            <Input id="business_handler" name="business_handler" value={formData.business_handler} onChange={handleChange} dir="ltr" />
+                            <Input id="province" name="province" value={formData.province} onChange={handleChange} />
+                        </div>
+                        <div>
+                            <Label htmlFor="city" className="mb-2 block">
+                                شهر
+                            </Label>
+                            <Input id="city" name="city" value={formData.city} onChange={handleChange} />
                         </div>
                         <div>
                             <Label htmlFor="telephone" className="mb-2 block">

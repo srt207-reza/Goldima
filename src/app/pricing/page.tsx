@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Calculator, CheckCircle2, Layers3, LockKeyhole, Percent, Plus, Save, SlidersHorizontal, ToggleLeft, ToggleRight } from "lucide-react";
+import { Calculator, Check, CheckCircle2, ChevronDown, Layers3, LockKeyhole, Percent, Plus, Save, SlidersHorizontal, ToggleLeft, ToggleRight } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,7 @@ import {
     type TradingProductKey,
 } from "@/constants/trading-board";
 import { canViewPricingTools, getNormalizedUserRole } from "@/lib/user-role";
-import type { PricingRuleRequest, PricingRuleType, ProductPriceSection, ProductPriceTreeDetail } from "@/types/api/product";
+import type { PriceAppliesTo, PricingRuleRequest, PricingRuleType, ProductPriceSection, ProductPriceTreeDetail } from "@/types/api/product";
 import type { CurrentUser } from "@/types/api/user";
 
 type MarketDraft = {
@@ -61,7 +61,14 @@ type RuleTarget = {
 type RuleDraft = {
     targetKey: string;
     type: PricingRuleType;
+    appliesTo: PriceAppliesTo;
     value: string;
+};
+
+type DropdownOption<T extends string> = {
+    value: T;
+    label: string;
+    caption?: string;
 };
 
 const MARKET_API_NAMES: Record<TradingMarketKey, string> = {
@@ -69,6 +76,16 @@ const MARKET_API_NAMES: Record<TradingMarketKey, string> = {
     uae: "UAE",
     turkey: "Turkey",
 };
+
+const APPLIES_TO_OPTIONS: DropdownOption<PriceAppliesTo>[] = [
+    { value: "SELL", label: "قیمت فروش", caption: "قانون روی قیمت فروش اعمال می‌شود" },
+    { value: "BUY", label: "قیمت خرید", caption: "قانون روی قیمت خرید اعمال می‌شود" },
+];
+
+const RULE_TYPE_OPTIONS: DropdownOption<PricingRuleType>[] = [
+    { value: "PERCENT", label: "درصدی", caption: "مثلاً ۵ یا -۵ درصد" },
+    { value: "FIXED", label: "عدد ثابت", caption: "مبلغ ثابت مثبت یا منفی" },
+];
 
 function getProductId(product: ProductPriceTreeDetail): number {
     return Number(product.product_id ?? product.id);
@@ -200,6 +217,102 @@ function ActiveToggle({ checked, onChange, label }: { checked: boolean; onChange
     );
 }
 
+function PricingDropdown<T extends string>({
+    id,
+    value,
+    options,
+    placeholder,
+    onChange,
+}: {
+    id: string;
+    value: T;
+    options: DropdownOption<T>[];
+    placeholder: string;
+    onChange: (value: T) => void;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectedOption = options.find((option) => option.value === value);
+
+    return (
+        <div
+            className={`relative ${isOpen ? "z-[90]" : "z-0"}`}
+            onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setIsOpen(false);
+                }
+            }}
+        >
+            <button
+                id={id}
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                onClick={() => setIsOpen((current) => !current)}
+                className={[
+                    "group flex h-12 w-full items-center justify-between gap-3 rounded-xl border px-4 text-right text-sm font-bold outline-none transition-all duration-300",
+                    "border-brand-border/80 bg-brand-base/50 text-brand-text-primary shadow-inner shadow-black/10",
+                    "hover:border-silver-dark/70 hover:bg-brand-base/70 focus:border-silver-light/70 focus:ring-2 focus:ring-silver-light/25",
+                    isOpen ? "border-silver-light/60 bg-brand-surface/80 shadow-silver-glow" : "",
+                ].join(" ")}
+            >
+                <span className="min-w-0 flex-1 truncate">
+                    {selectedOption?.label ?? placeholder}
+                </span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-silver-light transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {isOpen ? (
+                <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.18, ease: "easeOut" }}
+                    role="listbox"
+                    aria-labelledby={id}
+                    className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] max-h-72 w-full overflow-hidden rounded-2xl border border-silver-light/20 bg-brand-surface/95 p-1.5 text-right shadow-2xl shadow-black/40 backdrop-blur-2xl"
+                >
+                    <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-l from-transparent via-silver-light/70 to-transparent" />
+                    <div className="max-h-64 overflow-y-auto pr-1">
+                        {options.map((option) => {
+                            const selected = option.value === value;
+
+                            return (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={selected}
+                                    onClick={() => {
+                                        onChange(option.value);
+                                        setIsOpen(false);
+                                    }}
+                                    className={[
+                                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-right transition-all duration-200",
+                                        selected
+                                            ? "bg-silver-light/12 text-brand-text-primary shadow-inner shadow-silver-light/5"
+                                            : "text-brand-text-secondary hover:bg-white/[0.06] hover:text-brand-text-primary",
+                                    ].join(" ")}
+                                >
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-sm font-bold">{option.label}</span>
+                                        {option.caption ? (
+                                            <span className="mt-1 block truncate text-xs text-brand-text-secondary">
+                                                {option.caption}
+                                            </span>
+                                        ) : null}
+                                    </span>
+                                    <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition ${selected ? "border-silver-light/45 bg-silver-light/15 text-silver-light" : "border-transparent text-transparent"}`}>
+                                        <Check className="h-4 w-4" />
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </motion.div>
+            ) : null}
+        </div>
+    );
+}
+
 function ReferenceProductCard({
     definition,
     draft,
@@ -318,15 +431,27 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
     const { data: apiProducts = [], isLoading: isProductsLoading, isError: isProductsError } = useProductsQuery();
 
     const [drafts, setDrafts] = useState<Record<TradingProductKey, ProductDraft>>(() => buildDrafts([]));
-    const [ruleDraft, setRuleDraft] = useState<RuleDraft>({ targetKey: "", type: "PERCENT", value: "" });
+    const [ruleDraft, setRuleDraft] = useState<RuleDraft>({ targetKey: "", type: "PERCENT", appliesTo: "SELL", value: "" });
 
     const role = getNormalizedUserRole(currentUser);
     const isReference = role === "reference";
-    const isWholesale = role === "wholesale";
+    const canManageRule = role === "wholesale" || role === "retail";
     const isSavingReference = createProductMutation.isPending || updateProductMutation.isPending || setBasePriceMutation.isPending || updateBasePriceMutation.isPending;
     const isSavingRule = setPricingRuleMutation.isPending || updatePricingRuleMutation.isPending;
 
     const ruleTargets = useMemo(() => buildRuleTargets(apiProducts), [apiProducts]);
+    const ruleTargetOptions = useMemo<DropdownOption<string>[]>(
+        () =>
+            ruleTargets.map((target) => {
+                const market = getTradingMarket(target.marketKey);
+                return {
+                    value: targetKey(target),
+                    label: `${target.productDefinition.title} - ${market.label}`,
+                    caption: `شناسه بخش: ${target.section.base_price_id}`,
+                };
+            }),
+        [ruleTargets],
+    );
     const selectedRuleTarget = useMemo(
         () => ruleTargets.find((target) => targetKey(target) === ruleDraft.targetKey) ?? ruleTargets[0],
         [ruleDraft.targetKey, ruleTargets],
@@ -422,7 +547,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
         }
 
         const value = parseMoney(ruleDraft.value);
-        if (!Number.isFinite(value) || value < 0) {
+        if (!Number.isFinite(value)) {
             toast.error("مقدار قانون معتبر نیست");
             return;
         }
@@ -431,6 +556,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
             product_id: getProductId(selectedRuleTarget.product),
             base_price_id: selectedRuleTarget.section.base_price_id,
             type: ruleDraft.type,
+            applies_to: ruleDraft.appliesTo,
             value,
         };
 
@@ -478,7 +604,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                         <div>
                             <div className="inline-flex items-center gap-2 rounded-lg border border-silver-light/20 bg-silver-light/10 px-4 py-2 text-sm text-silver-light">
                                 <SlidersHorizontal className="h-4 w-4" />
-                                {isReference ? "قیمت‌گذاری مرجع" : "قانون قیمت عمده‌فروش"}
+                                {isReference ? "قیمت‌گذاری مرجع" : "قانون قیمت فروشگاه"}
                             </div>
                             <h1 className="mt-4 text-2xl font-bold text-brand-text-primary sm:text-3xl">مدیریت قیمت تابلو</h1>
                             <p className="mt-3 max-w-3xl leading-8 text-brand-text-secondary">
@@ -520,9 +646,9 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                     </div>
                 ) : null}
 
-                {isWholesale ? (
-                    <form onSubmit={handleRuleSubmit} className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
-                        <Card className="border border-silver-dark/20 bg-brand-surface/85 p-5 text-right shadow-deep-card backdrop-blur-xl">
+                {canManageRule ? (
+                    <form onSubmit={handleRuleSubmit} className="relative z-30 grid gap-5 overflow-visible lg:grid-cols-[0.9fr_1.1fr]">
+                        <Card className="relative z-40 overflow-visible border border-silver-dark/20 bg-brand-surface/85 p-5 text-right shadow-deep-card backdrop-blur-xl">
                             <div className="mb-5 flex items-center gap-2">
                                 <Calculator className="h-5 w-5 text-silver-light" />
                                 <h2 className="text-lg font-bold text-brand-text-primary">قانون قیمت‌گذاری شما</h2>
@@ -531,39 +657,40 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                             <div className="grid gap-4">
                                 <div>
                                     <Label htmlFor="target" className="mb-2 block">محصول و بازار</Label>
-                                    <select
+                                    <PricingDropdown
                                         id="target"
                                         value={ruleDraft.targetKey}
-                                        onChange={(event: ChangeEvent<HTMLSelectElement>) => setRuleDraft((prev) => ({ ...prev, targetKey: event.target.value }))}
-                                        className="flex h-11 w-full rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary outline-none transition focus:border-silver-light/70 focus:ring-2 focus:ring-silver-light/25"
-                                    >
-                                        {ruleTargets.map((target) => {
-                                            const market = getTradingMarket(target.marketKey);
-                                            return (
-                                                <option key={targetKey(target)} value={targetKey(target)}>
-                                                    {target.productDefinition.title} - {market.label}
-                                                </option>
-                                            );
-                                        })}
-                                    </select>
+                                        options={ruleTargetOptions}
+                                        placeholder="انتخاب محصول و بازار"
+                                        onChange={(value) => setRuleDraft((prev) => ({ ...prev, targetKey: value }))}
+                                    />
                                 </div>
 
-                                <div className="grid gap-3 md:grid-cols-2">
+                                <div className="grid gap-3 md:grid-cols-3">
                                     <div>
-                                        <Label htmlFor="type" className="mb-2 block">نوع افزایش</Label>
-                                        <select
+                                        <Label htmlFor="applies_to" className="mb-2 block">اعمال روی</Label>
+                                        <PricingDropdown
+                                            id="applies_to"
+                                            value={ruleDraft.appliesTo}
+                                            options={APPLIES_TO_OPTIONS}
+                                            placeholder="انتخاب قیمت"
+                                            onChange={(value) => setRuleDraft((prev) => ({ ...prev, appliesTo: value }))}
+                                        />
+                                    </div>
+
+                                    <div>
+                                        <Label htmlFor="type" className="mb-2 block">نوع قانون</Label>
+                                        <PricingDropdown
                                             id="type"
                                             value={ruleDraft.type}
-                                            onChange={(event: ChangeEvent<HTMLSelectElement>) => setRuleDraft((prev) => ({ ...prev, type: event.target.value as PricingRuleType }))}
-                                            className="flex h-11 w-full rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary outline-none transition focus:border-silver-light/70 focus:ring-2 focus:ring-silver-light/25"
-                                        >
-                                            <option value="PERCENT">درصدی</option>
-                                            <option value="FIXED">عدد ثابت</option>
-                                        </select>
+                                            options={RULE_TYPE_OPTIONS}
+                                            placeholder="انتخاب نوع قانون"
+                                            onChange={(value) => setRuleDraft((prev) => ({ ...prev, type: value }))}
+                                        />
                                     </div>
                                     <div>
                                         <Label htmlFor="value" className="mb-2 block">مقدار</Label>
-                                        <Input id="value" value={ruleDraft.value} onChange={(event) => setRuleDraft((prev) => ({ ...prev, value: event.target.value }))} type="number" min="0" step="0.01" dir="ltr" />
+                                        <Input id="value" value={ruleDraft.value} onChange={(event) => setRuleDraft((prev) => ({ ...prev, value: event.target.value }))} type="number" step="0.01" dir="ltr" />
                                     </div>
                                 </div>
                             </div>
@@ -576,7 +703,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                             </div>
                         </Card>
 
-                        <Card className="border border-emerald-300/20 bg-emerald-400/10 p-5 text-right text-emerald-50">
+                        <Card className="relative z-10 border border-emerald-300/20 bg-emerald-400/10 p-5 text-right text-emerald-50">
                             <div className="flex items-start gap-3">
                                 <CheckCircle2 className="mt-1 h-5 w-5" />
                                 <div>
@@ -601,7 +728,7 @@ function PricingWorkspace({ currentUser }: { currentUser: CurrentUser }) {
                     </form>
                 ) : null}
 
-                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
+                <Card className="relative z-0 border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                     <div className="mb-5 flex items-center gap-2">
                         <Layers3 className="h-5 w-5 text-silver-light" />
                         <h2 className="text-lg font-bold text-brand-text-primary">نمای کلی بازارهای فعال</h2>

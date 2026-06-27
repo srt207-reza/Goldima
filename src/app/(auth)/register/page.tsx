@@ -27,7 +27,9 @@ import { ShineBorder } from "@/components/ui/shine-border";
 import { BusinessLogoUploader } from "@/components/auth/business-logo-uploader";
 
 import {
+    useBusinessProfileSearchQuery,
     useParentBusinessProfileQuery,
+    usePhoneEmployeeRegisterMutation,
     usePhoneRegisterMutation,
 } from "@/hooks/api";
 
@@ -60,8 +62,10 @@ import {
 } from "@/services/api/auth";
 
 import type { AuthBusinessProfile } from "@/types/api/auth";
+import type { BusinessProfile } from "@/types/api/user";
 
 type Step = 1 | 2;
+type EmployeeRegistrationChoice = "employee" | "business_owner" | null;
 
 type RegisterFormState = {
     username: string;
@@ -115,6 +119,13 @@ function normalizePersianCharacters(value: string): string {
         .replace(/[يى]/g, "ی")
         .replace(/ك/g, "ک")
         .replace(/ة/g, "ه");
+}
+
+function normalizeBusinessNameForLookup(value: string): string {
+    return normalizePersianCharacters(value)
+        .trim()
+        .replace(/\s+/g, " ")
+        .toLowerCase();
 }
 
 /**
@@ -341,8 +352,13 @@ function getStepOneErrors(
 }
 
 function validateStepTwo(
-    formData: RegisterFormState
+    formData: RegisterFormState,
+    isEmployeeRegistration = false
 ): string | null {
+    if (isEmployeeRegistration) {
+        return null;
+    }
+
     if (!formData.address.trim()) {
         return "آدرس الزامی است.";
     }
@@ -575,6 +591,75 @@ function SponsorIdentity({
     );
 }
 
+function EmployeeBusinessPrompt({
+    profile,
+    choice,
+    isSearching,
+    onChoice,
+}: {
+    profile: BusinessProfile | null;
+    choice: EmployeeRegistrationChoice;
+    isSearching: boolean;
+    onChoice: (choice: Exclude<EmployeeRegistrationChoice, null>) => void;
+}) {
+    if (!profile && !isSearching) {
+        return null;
+    }
+
+    return (
+        <div className="md:col-span-2">
+            <div className="rounded-2xl border border-silver-light/20 bg-brand-base/55 p-4 text-right shadow-inner shadow-black/10">
+                {isSearching && !profile ? (
+                    <p className="text-sm font-medium leading-7 text-brand-text-secondary">
+                        در حال بررسی نام فروشگاه...
+                    </p>
+                ) : null}
+
+                {profile ? (
+                    <div className="space-y-4">
+                        <div>
+                            <p className="text-sm font-bold text-brand-text-primary">
+                                فروشگاهی با این نام قبلاً ثبت شده است.
+                            </p>
+                            <p className="mt-2 text-sm leading-7 text-brand-text-secondary">
+                                آیا می‌خواهید به عنوان کارمند{" "}
+                                <span className="font-bold text-silver-light">
+                                    {profile.business_name}
+                                </span>{" "}
+                                ادامه دهید؟
+                            </p>
+                        </div>
+
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <button
+                                type="button"
+                                onClick={() => onChoice("employee")}
+                                className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${choice === "employee"
+                                    ? "border-emerald-300/35 bg-emerald-400/15 text-emerald-100"
+                                    : "border-silver-dark/25 bg-white/[0.04] text-brand-text-primary hover:border-silver-light/30"
+                                    }`}
+                            >
+                                بله، کارمند این فروشگاه هستم
+                            </button>
+
+                            <button
+                                type="button"
+                                onClick={() => onChoice("business_owner")}
+                                className={`rounded-xl border px-4 py-3 text-sm font-bold transition ${choice === "business_owner"
+                                    ? "border-silver-light/35 bg-silver-light/12 text-brand-text-primary shadow-silver-glow"
+                                    : "border-silver-dark/25 bg-white/[0.04] text-brand-text-primary hover:border-silver-light/30"
+                                    }`}
+                            >
+                                خیر، کسب‌وکار جدید ثبت می‌کنم
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+        </div>
+    );
+}
+
 function OrganizationNotFound({
     businessHandler,
 }: {
@@ -761,6 +846,8 @@ function RegisterPageContent() {
 
     const registerMutation =
         usePhoneRegisterMutation();
+    const employeeRegisterMutation =
+        usePhoneEmployeeRegisterMutation();
 
     const [step, setStep] = useState<Step>(1);
 
@@ -771,6 +858,10 @@ function RegisterPageContent() {
 
     const [fieldErrors, setFieldErrors] =
         useState<FieldErrors>({});
+    const [
+        employeeRegistrationChoice,
+        setEmployeeRegistrationChoice,
+    ] = useState<EmployeeRegistrationChoice>(null);
 
     const [
         parentBusinessHandler,
@@ -810,6 +901,55 @@ function RegisterPageContent() {
             ),
         [formData.province]
     );
+
+    const normalizedBusinessName = useMemo(
+        () =>
+            normalizeBusinessNameForLookup(
+                formData.business_name
+            ),
+        [formData.business_name]
+    );
+
+    const businessProfileSearchQuery =
+        useBusinessProfileSearchQuery(
+            formData.business_name.trim(),
+            step === 2 &&
+            normalizedBusinessName.length >= 2
+        );
+
+    const matchedBusinessProfile = useMemo(() => {
+        const profiles =
+            businessProfileSearchQuery.data ?? [];
+
+        if (!normalizedBusinessName) {
+            return null;
+        }
+
+        return (
+            profiles.find(
+                (profile) =>
+                    normalizeBusinessNameForLookup(
+                        profile.business_name
+                    ) === normalizedBusinessName
+            ) ?? null
+        );
+    }, [
+        businessProfileSearchQuery.data,
+        normalizedBusinessName,
+    ]);
+
+    const isEmployeeRegistration =
+        employeeRegistrationChoice === "employee" &&
+        Boolean(matchedBusinessProfile);
+
+    const shouldShowStoreDetails =
+        !matchedBusinessProfile ||
+        employeeRegistrationChoice ===
+        "business_owner";
+
+    const isSubmittingRegister =
+        registerMutation.isPending ||
+        employeeRegisterMutation.isPending;
 
     useEffect(() => {
         const params = new URLSearchParams(
@@ -925,6 +1065,10 @@ function RegisterPageContent() {
             { scroll: false }
         );
     }, [router, searchKey]);
+
+    useEffect(() => {
+        setEmployeeRegistrationChoice(null);
+    }, [normalizedBusinessName]);
 
     const setFieldError = (
         field: ValidatedField,
@@ -1178,7 +1322,7 @@ function RegisterPageContent() {
 
         if (
             submitLockRef.current ||
-            registerMutation.isPending
+            isSubmittingRegister
         ) {
             return;
         }
@@ -1222,8 +1366,30 @@ function RegisterPageContent() {
             return;
         }
 
+        if (businessProfileSearchQuery.isFetching) {
+            toast.error(
+                "لطفاً تا پایان بررسی نام فروشگاه صبر کنید."
+            );
+
+            return;
+        }
+
+        if (
+            matchedBusinessProfile &&
+            !employeeRegistrationChoice
+        ) {
+            toast.error(
+                "این فروشگاه قبلاً ثبت شده است. لطفاً مشخص کنید به عنوان کارمند ادامه می‌دهید یا کسب‌وکار جدید ثبت می‌کنید."
+            );
+
+            return;
+        }
+
         const stepTwoError =
-            validateStepTwo(formData);
+            validateStepTwo(
+                formData,
+                isEmployeeRegistration
+            );
 
         if (stepTwoError) {
             toast.error(stepTwoError);
@@ -1233,45 +1399,54 @@ function RegisterPageContent() {
         submitLockRef.current = true;
 
         try {
+            const commonPayload = {
+                username: normalizeMobileUsername(
+                    formData.username
+                ),
+                code: verifiedOtpCode,
+                first_name: formData.first_name.trim(),
+                last_name: formData.last_name.trim(),
+                email: formData.email
+                    .trim()
+                    .toLowerCase(),
+                birth_date: birthDateToApi(
+                    formData.birth_date
+                ),
+            };
+
             const response =
-                await registerMutation.mutateAsync(
-                    {
-                        username:
-                            normalizeMobileUsername(
-                                formData.username
-                            ),
-                        code: verifiedOtpCode,
-                        first_name:
-                            formData.first_name.trim(),
-                        last_name:
-                            formData.last_name.trim(),
-                        email: formData.email
-                            .trim()
-                            .toLowerCase(),
-                        birth_date:
-                            birthDateToApi(
-                                formData.birth_date
-                            ),
-                        business_name:
-                            formData.business_name.trim(),
-                        business_handler:
-                            formData.business_name.trim(),
-                        address:
-                            formData.address.trim(),
-                        province:
-                            formData.province.trim(),
-                        city: formData.city.trim(),
-                        telephone:
-                            normalizeDigits(
-                                formData.telephone.trim()
-                            ),
-                        business_logo:
-                            formData.business_logo,
-                        parent_business_handler:
-                            parentBusinessHandler ||
-                            undefined,
-                    }
-                );
+                isEmployeeRegistration &&
+                matchedBusinessProfile
+                    ? await employeeRegisterMutation.mutateAsync(
+                        {
+                            ...commonPayload,
+                            business_id:
+                                matchedBusinessProfile.id,
+                        }
+                    )
+                    : await registerMutation.mutateAsync(
+                        {
+                            ...commonPayload,
+                            business_name:
+                                formData.business_name.trim(),
+                            business_handler:
+                                formData.business_name.trim(),
+                            address:
+                                formData.address.trim(),
+                            province:
+                                formData.province.trim(),
+                            city: formData.city.trim(),
+                            telephone:
+                                normalizeDigits(
+                                    formData.telephone.trim()
+                                ),
+                            business_logo:
+                                formData.business_logo,
+                            parent_business_handler:
+                                parentBusinessHandler ||
+                                undefined,
+                        }
+                    );
 
             clearRegisterOtpSession();
 
@@ -1596,7 +1771,7 @@ function RegisterPageContent() {
                                                 "business_name"
                                             )
                                         }
-                                        placeholder="مثال: فروشگاه نوروس"
+                                        placeholder="مثال: فروشگاه گلدیما"
                                         dir="rtl"
                                         maxLength={80}
                                         aria-invalid={Boolean(
@@ -1621,6 +1796,23 @@ function RegisterPageContent() {
                                     />
                                 </div>
 
+                                <EmployeeBusinessPrompt
+                                    profile={
+                                        matchedBusinessProfile
+                                    }
+                                    choice={
+                                        employeeRegistrationChoice
+                                    }
+                                    isSearching={
+                                        businessProfileSearchQuery.isFetching
+                                    }
+                                    onChoice={
+                                        setEmployeeRegistrationChoice
+                                    }
+                                />
+
+                                {shouldShowStoreDetails ? (
+                                    <>
                                 <div className="group/input">
                                     <Label
                                         htmlFor="telephone"
@@ -1689,8 +1881,11 @@ function RegisterPageContent() {
                                         )
                                     }
                                 />
+                                    </>
+                                ) : null}
                             </div>
 
+                            {shouldShowStoreDetails ? (
                             <div className="group/input">
                                 <Label
                                     htmlFor="address"
@@ -1722,6 +1917,7 @@ function RegisterPageContent() {
                                     }
                                 />
                             </div>
+                            ) : null}
 
                             {/* <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm leading-7 text-emerald-100">
                                 مرجع ثبت‌نام:{" "}
@@ -1754,11 +1950,11 @@ function RegisterPageContent() {
                             type="submit"
                             className="group/btn relative w-full cursor-pointer overflow-hidden text-white"
                             disabled={
-                                registerMutation.isPending ||
+                                isSubmittingRegister ||
                                 submitLockRef.current
                             }
                         >
-                            {registerMutation.isPending
+                            {isSubmittingRegister
                                 ? "در حال ثبت‌نام..."
                                 : step === 1
                                     ? "مرحله بعد"

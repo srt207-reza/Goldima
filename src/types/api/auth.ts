@@ -14,6 +14,10 @@ export type AuthUserDetail = {
     birth_date: string | null;
     role: AuthUserRole;
     status: AuthUserStatus;
+    parent?: string | null;
+    is_employee?: boolean;
+    last_login?: string | null;
+    date_joined?: string;
 };
 
 export type AuthBusinessProfile = {
@@ -57,6 +61,7 @@ export type PhoneVerifyOtpResponse = {
 export type PhoneAuthResponse = {
     access: string;
     refresh: string;
+    user?: AuthUserDetail;
     user_profile: AuthBusinessProfile;
 };
 
@@ -80,6 +85,18 @@ export type PhoneRegisterRequest = {
 };
 
 export type PhoneRegisterResponse = PhoneAuthResponse;
+
+export type PhoneEmployeeRegisterRequest = {
+    username: string;
+    code: string;
+    first_name: string;
+    last_name: string;
+    email: string;
+    birth_date: string;
+    business_id: number;
+};
+
+export type PhoneEmployeeRegisterResponse = PhoneAuthResponse;
 
 export type LogoutRequest = {
     refresh: string;

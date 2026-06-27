@@ -6,6 +6,7 @@ import {
     updateUser,
     getBusinessProfile,
     getParentBusinessProfile,
+    searchBusinessProfiles,
     updateBusinessProfile,
     normalizeCurrentUserResponse,
     normalizeUsersResponse,
@@ -83,6 +84,17 @@ export function useParentBusinessProfileQuery(businessHandler?: string) {
         enabled: shouldFetch,
         retry: false,
         staleTime: 5 * 60 * 1000,
+    });
+}
+
+export function useBusinessProfileSearchQuery(q: string, enabled = true) {
+    const query = q.trim();
+
+    return useQuery<BusinessProfile[], Error>({
+        queryKey: ["api", "business-profile", "search", query],
+        queryFn: () => searchBusinessProfiles(query),
+        enabled: enabled && query.length >= 2,
+        staleTime: 60 * 1000,
     });
 }
 

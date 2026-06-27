@@ -27,7 +27,7 @@ function BusinessLogo({ logoUrl, name }: { logoUrl?: string; name: string }) {
         <div className="mb-5 flex justify-center">
             {logoUrl ? (
                 <div className="relative h-28 w-28 overflow-hidden rounded-3xl border border-silver-light/20 bg-brand-base/60 shadow-silver-glow">
-                    <img src={logoUrl} alt={name} className="h-full w-full object-contain p-4" />
+                    <img src={logoUrl} alt={name} className="h-full w-full object-cover" />
                 </div>
             ) : (
                 <div className="relative h-24 w-36">
