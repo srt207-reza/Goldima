@@ -101,11 +101,11 @@ function PendingContent() {
     useEffect(() => {
         if (!currentUser) return;
 
-        if (currentRole === "reference" || currentUser.status === "APPROVED") {
+        if ((currentRole === "reference" && !currentUser.is_employee) || userStatus === "APPROVED") {
             router.replace("/");
             router.refresh();
         }
-    }, [currentRole, currentUser, router]);
+    }, [currentRole, currentUser, router, userStatus]);
 
     if (isLinkedToParent && parentProfileQuery.isError) {
         return <OrganizationNotFound businessHandler={parentBusinessHandler} />;

@@ -16,6 +16,7 @@ import {
     ShieldCheck,
     Sparkles,
     Trash2,
+    UserCheck,
     UserRound,
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -154,6 +155,7 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
     const role = getNormalizedUserRole(currentUser);
     const displayName = getDisplayName(currentUser);
     const businessLabel = getBusinessLabel(currentUser);
+    const isEmployee = currentUser.is_employee === true;
     const isSaving = updateUserMutation.isPending || updateBusinessProfileMutation.isPending;
     const hasFormChanges = useMemo(() => !areProfileStatesEqual(formData, savedFormData) || Boolean(logoFile), [formData, savedFormData, logoFile]);
     const existingLogoUrl = useMemo(() => resolveMediaUrl(currentUser.business_logo), [currentUser.business_logo]);
@@ -262,6 +264,12 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
                             <div className="min-w-0">
                                 <h1 className="truncate text-2xl font-bold text-brand-text-primary sm:text-3xl">{displayName}</h1>
                                 <p className="mt-2 max-w-3xl leading-8 text-brand-text-secondary">{businessLabel}</p>
+                                {isEmployee ? (
+                                    <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-1.5 text-xs font-bold text-emerald-100">
+                                        <UserCheck className="h-4 w-4" />
+                                        کارمند فروشگاه
+                                    </span>
+                                ) : null}
                             </div>
                         </div>
                     </div>
@@ -291,7 +299,7 @@ function ProfileEditor({ currentUser }: { currentUser: CurrentUser }) {
             >
                 <StatCard icon={ShieldCheck} label="نقش فعال" value={ROLE_LABELS[role]} />
                 <StatCard icon={BadgeCheck} label="وضعیت حساب" value={currentUser.status} />
-                <StatCard icon={Phone} label="شماره موبایل" value={currentUser.username} />
+                <StatCard icon={isEmployee ? UserCheck : Phone} label={isEmployee ? "نوع عضویت" : "شماره موبایل"} value={isEmployee ? "کارمند فروشگاه" : currentUser.username} />
             </motion.div>
 
             <motion.form

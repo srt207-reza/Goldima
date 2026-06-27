@@ -14,6 +14,7 @@ import {
     Phone,
     Save,
     ShieldCheck,
+    UserCheck,
     UserRound,
     XCircle,
 } from "lucide-react";
@@ -256,6 +257,12 @@ function UserEditor({
                                 <UserRound className="h-4 w-4 text-silver-light" />
                                 {ROLE_LABELS[role]}
                             </span>
+                            {user.is_employee ? (
+                                <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 font-bold text-emerald-100">
+                                    <UserCheck className="h-4 w-4" />
+                                    کارمند فروشگاه
+                                </span>
+                            ) : null}
                             <span className="inline-flex items-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 py-2">
                                 <ShieldCheck className="h-4 w-4 text-silver-light" />
                                 {STATUS_LABELS[user.status]}
@@ -388,6 +395,19 @@ function UserEditor({
                             <Label className="mb-2 block">شماره موبایل</Label>
                             <div className="flex h-11 items-center rounded-lg border border-silver-dark/20 bg-brand-base/45 px-4 text-sm text-brand-text-secondary" dir="ltr">
                                 {user.username}
+                            </div>
+                        </div>
+                        <div>
+                            <Label className="mb-2 block">نوع عضویت</Label>
+                            <div className="flex h-11 items-center gap-2 rounded-lg border border-silver-dark/20 bg-brand-base/45 px-4 text-sm text-brand-text-secondary">
+                                {user.is_employee ? (
+                                    <>
+                                        <UserCheck className="h-4 w-4 text-emerald-200" />
+                                        کارمند فروشگاه
+                                    </>
+                                ) : (
+                                    "مالک کسب‌وکار"
+                                )}
                             </div>
                         </div>
                     </div>

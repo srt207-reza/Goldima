@@ -406,10 +406,15 @@ function getPostAuthUrl(
     ).toUpperCase();
 
     const status = String(
-        profile.user.status ?? ""
+        profile.user?.status ?? ""
     ).toUpperCase();
+    const isEmployee =
+        profile.user?.is_employee === true;
 
-    if (role === "MASTER" || status === "APPROVED") {
+    if (
+        (!isEmployee && role === "MASTER") ||
+        status === "APPROVED"
+    ) {
         return "/";
     }
 
@@ -1069,6 +1074,24 @@ function RegisterPageContent() {
     useEffect(() => {
         setEmployeeRegistrationChoice(null);
     }, [normalizedBusinessName]);
+
+    const handleEmployeeRegistrationChoice = (
+        choice: Exclude<EmployeeRegistrationChoice, null>
+    ) => {
+        setEmployeeRegistrationChoice(choice);
+
+        if (choice === "business_owner") {
+            setFormData((previous) => ({
+                ...previous,
+                business_name: "",
+            }));
+
+            setFieldErrors((previous) => ({
+                ...previous,
+                business_name: undefined,
+            }));
+        }
+    };
 
     const setFieldError = (
         field: ValidatedField,
@@ -1807,7 +1830,7 @@ function RegisterPageContent() {
                                         businessProfileSearchQuery.isFetching
                                     }
                                     onChoice={
-                                        setEmployeeRegistrationChoice
+                                        handleEmployeeRegistrationChoice
                                     }
                                 />
 

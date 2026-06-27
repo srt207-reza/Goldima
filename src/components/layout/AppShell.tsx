@@ -15,6 +15,7 @@ import {
     PanelLeftOpen,
     Share2,
     Store,
+    UserCheck,
     Tags,
     UserCircle2,
     Users,
@@ -23,7 +24,7 @@ import {
 import toast from "react-hot-toast";
 import { useCurrentUserQuery, useLogoutMutation } from "@/hooks/api";
 import { clearAuthTokens, getRefreshToken } from "@/lib/auth-storage";
-import { canViewPricingTools, canViewUserManagement, getBusinessLabel, getDisplayName, getNormalizedUserRole } from "@/lib/user-role";
+import { canViewPricingTools, canViewUserManagement, getBusinessLabel, getNormalizedUserRole } from "@/lib/user-role";
 import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import { AmbientBackground } from "@/components/ui/ambient-background";
 import { FullPageLoader } from "@/components/ui/Loader";
@@ -145,13 +146,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const hideShell = isShellHidden(currentPathname);
     const role = useMemo(() => getNormalizedUserRole(currentUser), [currentUser]);
     const roleLabel = useMemo(() => getRoleLabel(role), [role]);
-    const displayName = useMemo(() => getDisplayName(currentUser), [currentUser]);
     const businessLabel = useMemo(() => getBusinessLabel(currentUser), [currentUser]);
+    const isEmployee = currentUser?.is_employee === true;
     const businessLogo = currentUser?.business_logo ?? null;
     const showUserManagementTools = useMemo(() => canViewUserManagement(currentUser), [currentUser]);
     const showPricingTools = useMemo(() => canViewPricingTools(currentUser), [currentUser]);
     const hasRoleTools = showUserManagementTools || showPricingTools;
-    const isAllowedDashboardUser = Boolean(currentUser && (role === "reference" || currentUser.status === "APPROVED"));
+    const isCurrentUserApproved = String(currentUser?.status ?? "").toUpperCase() === "APPROVED";
+    const isAllowedDashboardUser = Boolean(currentUser && ((role === "reference" && !isEmployee) || isCurrentUserApproved));
 
     const navItems: NavItem[] = [
         { href: "/", label: "داشبورد", icon: LayoutDashboard },
@@ -299,6 +301,12 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                     <div>
                                         <p className="text-sm font-semibold text-brand-text-primary">{businessLabel}</p>
                                         <p className="mt-1 text-xs text-brand-text-secondary">نقش فعال: {roleLabel}</p>
+                                        {isEmployee ? (
+                                            <span className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-2 py-1 text-[11px] font-bold text-emerald-100">
+                                                <UserCheck className="h-3.5 w-3.5" />
+                                                کارمند فروشگاه
+                                            </span>
+                                        ) : null}
                                     </div>
                                 )}
                             </div>
@@ -327,9 +335,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                                 نقش فعال
                                             </p>
                                             <div className="flex items-center gap-2 text-sm text-brand-text-primary">
-                                                <Users className="h-4 w-4 text-silver-light" />
+                                                {isEmployee ? <UserCheck className="h-4 w-4 text-emerald-200" /> : <Users className="h-4 w-4 text-silver-light" />}
                                                 {roleLabel}
                                             </div>
+                                            {isEmployee ? (
+                                                <p className="mt-2 inline-flex items-center rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-xs font-bold text-emerald-100">
+                                                    کارمند این کسب‌وکار
+                                                </p>
+                                            ) : null}
                                             <p className="mt-2 text-xs leading-6 text-brand-text-secondary">
                                                 {showUserManagementTools && showPricingTools
                                                     ? "لیست کاربران و قیمت‌گذاری‌ها برای نقش شما فعال است."

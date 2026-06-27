@@ -16,8 +16,9 @@ export function getPendingUrl(profile: AuthBusinessProfile, parentBusinessHandle
 export function getPostAuthUrl(profile: AuthBusinessProfile, parentBusinessHandler?: string): string {
     const role = String(profile.user?.role ?? "").toUpperCase();
     const status = String(profile.user?.status ?? "").toUpperCase();
+    const isEmployee = profile.user?.is_employee === true;
 
-    if (role === "MASTER" || status === "APPROVED") {
+    if ((!isEmployee && role === "MASTER") || status === "APPROVED") {
         return "/";
     }
 

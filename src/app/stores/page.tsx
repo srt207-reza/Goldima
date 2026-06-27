@@ -13,6 +13,7 @@ import {
     SearchX,
     ShieldCheck,
     Store,
+    UserCheck,
     UserRound,
     XCircle,
 } from "lucide-react";
@@ -164,6 +165,12 @@ function UserCard({
                             <UserRound className="h-3.5 w-3.5" />
                             {ROLE_LABELS[role]}
                         </span>
+                        {user.is_employee ? (
+                            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-300/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100">
+                                <UserCheck className="h-3.5 w-3.5" />
+                                کارمند
+                            </span>
+                        ) : null}
                         <span className="inline-flex rounded-md border border-silver-dark/25 bg-white/5 px-2 py-1 text-brand-text-secondary">
                             کد پروفایل: {user.business_profile_id ?? "ندارد"}
                         </span>

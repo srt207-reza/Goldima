@@ -216,6 +216,21 @@ type RawAuthUser = Partial<AuthUserDetail> & {
     business?: Partial<AuthBusinessProfile> | null;
 };
 
+type RawAuthBusinessProfile = {
+    id?: string | number;
+    user?: RawAuthUser | null;
+    business_name?: string | null;
+    business_handler?: string | null;
+    address?: string | null;
+    province?: string | null;
+    city?: string | null;
+    telephone?: string | null;
+    business_logo?: string | null;
+    is_active?: boolean;
+    created_at?: string | null;
+    updated_at?: string | null;
+};
+
 function normalizeAuthUser(user: RawAuthUser): AuthUserDetail {
     return {
         id: String(user.id ?? ""),
@@ -265,6 +280,35 @@ function normalizeAuthBusinessProfileFromUser(user: RawAuthUser): AuthBusinessPr
     };
 }
 
+function normalizeAuthBusinessProfileFromRawBusiness(
+    business: RawAuthBusinessProfile,
+    user: RawAuthUser
+): AuthBusinessProfile {
+    return {
+        id: Number(business.id ?? 0),
+        user: normalizeAuthUser(user),
+        business_name: String(business.business_name ?? ""),
+        business_handler:
+            typeof business.business_handler === "string"
+                ? business.business_handler
+                : null,
+        address: String(business.address ?? ""),
+        province: String(business.province ?? ""),
+        city: String(business.city ?? ""),
+        telephone: String(business.telephone ?? ""),
+        business_logo:
+            typeof business.business_logo === "string"
+                ? business.business_logo
+                : null,
+        is_active:
+            typeof business.is_active === "boolean"
+                ? business.is_active
+                : true,
+        created_at: String(business.created_at ?? ""),
+        updated_at: String(business.updated_at ?? ""),
+    };
+}
+
 function normalizePhoneAuthResponse<
     T extends
         | PhoneLoginResponse
@@ -282,28 +326,55 @@ function normalizePhoneAuthResponse<
             ? (data as Record<string, unknown>)
             : {};
 
-    if (
-        record.user_profile &&
-        typeof record.user_profile === "object"
-    ) {
+    const rawUser =
+        record.user && typeof record.user === "object"
+            ? (record.user as RawAuthUser)
+            : null;
+
+    const rawUserProfile =
+        record.user_profile && typeof record.user_profile === "object"
+            ? (record.user_profile as RawAuthBusinessProfile)
+            : null;
+
+    if (rawUser) {
+        const userProfile =
+            rawUser.business && typeof rawUser.business === "object"
+                ? normalizeAuthBusinessProfileFromUser(rawUser)
+                : rawUserProfile
+                    ? normalizeAuthBusinessProfileFromRawBusiness(rawUserProfile, rawUser)
+                    : null;
+
+        if (userProfile) {
+            return {
+                access: tokens.access,
+                refresh: tokens.refresh,
+                user: userProfile.user,
+                user_profile: userProfile,
+            } as T;
+        }
+    }
+
+    if (rawUserProfile) {
+        const profileUser =
+            rawUserProfile.user && typeof rawUserProfile.user === "object"
+                ? rawUserProfile.user
+                : null;
+
+        if (!profileUser) {
+            return {
+                ...(record as object),
+                access: tokens.access,
+                refresh: tokens.refresh,
+                user_profile: rawUserProfile,
+            } as T;
+        }
+
         return {
             ...(record as object),
             access: tokens.access,
             refresh: tokens.refresh,
-            user_profile: record.user_profile,
-        } as T;
-    }
-
-    if (record.user && typeof record.user === "object") {
-        const userProfile = normalizeAuthBusinessProfileFromUser(
-            record.user as RawAuthUser
-        );
-
-        return {
-            access: tokens.access,
-            refresh: tokens.refresh,
-            user: userProfile.user,
-            user_profile: userProfile,
+            user: normalizeAuthUser(profileUser),
+            user_profile: normalizeAuthBusinessProfileFromRawBusiness(rawUserProfile, profileUser),
         } as T;
     }
 
