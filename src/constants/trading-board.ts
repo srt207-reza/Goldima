@@ -23,7 +23,7 @@ export const TRADING_MARKETS: TradingMarketDefinition[] = [
         key: "tehran",
         label: "بازار تهران",
         code: "IR",
-        currency: "ریال",
+        currency: "دلار",
         aliases: ["tehran", "تهران", "iran", "ایران", "بازار تهران"],
     },
     {

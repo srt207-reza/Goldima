@@ -29,6 +29,16 @@ const OTP_CODE_REGEX = /^\d{6}$/;
 const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_LOGO_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/svg+xml"]);
 
+export class ActiveOtpCodeError extends Error {
+    isRegistered?: boolean;
+
+    constructor(message: string, isRegistered?: boolean) {
+        super(message);
+        this.name = "ActiveOtpCodeError";
+        this.isRegistered = isRegistered;
+    }
+}
+
 const PERSIAN_DIGIT_MAP: Record<string, string> = {
     "۰": "0",
     "۱": "1",
@@ -191,6 +201,17 @@ function getApiErrorMessage(error: unknown, fallback: string): string {
     }
 
     return fallback;
+}
+
+function getActiveOtpIsRegistered(error: AxiosError<unknown>): boolean | undefined {
+    const data = error.response?.data;
+
+    if (!data || typeof data !== "object") {
+        return undefined;
+    }
+
+    const record = data as Record<string, unknown>;
+    return typeof record.is_registered === "boolean" ? record.is_registered : undefined;
 }
 
 function normalizeTokenPair(data: unknown): AuthTokenPairLike {
@@ -453,6 +474,13 @@ export async function sendPhoneOtp(payload: PhoneSendOtpRequest): Promise<PhoneS
 
         return data;
     } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 425) {
+            throw new ActiveOtpCodeError(
+                getApiErrorMessage(error, "کد تایید قبلاً برای این شماره ارسال شده است."),
+                getActiveOtpIsRegistered(error),
+            );
+        }
+
         throw new Error(getApiErrorMessage(error, "ارسال کد تایید با خطا مواجه شد."));
     }
 }

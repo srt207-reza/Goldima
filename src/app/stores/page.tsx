@@ -18,7 +18,9 @@ import {
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { useCurrentUserQuery, useUpdateUserMutation, useUsersQuery } from "@/hooks/api";
+import { toPersianDisplayDate } from "@/lib/date-format";
 import { canViewUserManagement, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
+import { resolveMediaUrl } from "@/lib/media-url";
 import type { ManagedUser, UserStatus } from "@/types/api/user";
 
 type StatusConfig = {
@@ -120,6 +122,17 @@ function getDisplayName(user: ManagedUser): string {
     return user.business_name || [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || user.username || "بدون نام";
 }
 
+function getPersonName(user: ManagedUser): string {
+    return [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || user.username || user.email || "بدون نام کاربر";
+}
+
+function getMembershipDate(user: ManagedUser): string {
+    const rawDate = user.date_joined || user.business_profile_created_at || "";
+    const dateOnly = rawDate.split("T")[0] || rawDate;
+
+    return toPersianDisplayDate(dateOnly) || "ثبت نشده";
+}
+
 function canManageUser(currentUser: ManagedUser, targetUser: ManagedUser): boolean {
     const currentRole = getNormalizedUserRole(currentUser);
     const targetRole = getNormalizedUserRole(targetUser);
@@ -169,7 +182,8 @@ function getSearchText(user: ManagedUser): string {
         user.telephone,
         user.email,
         user.business_handler,
-        user.business_profile_id,
+        getPersonName(user),
+        getMembershipDate(user),
     ]
         .filter(Boolean)
         .join(" ")
@@ -190,12 +204,12 @@ function UsersTable({
             <div className="max-h-[66dvh] overflow-auto">
                 <table className="w-full min-w-[980px] table-fixed border-separate border-spacing-0 text-sm">
                     <colgroup>
-                        <col className="w-[28%]" />
+                        <col className="w-[30%]" />
                         <col className="w-[14%]" />
                         <col className="w-[14%]" />
-                        <col className="w-[18%]" />
-                        <col className="w-[10%]" />
                         <col className="w-[16%]" />
+                        <col className="w-[12%]" />
+                        <col className="w-[14%]" />
                     </colgroup>
                     <thead className="sticky top-0 z-10 bg-brand-surface/95 backdrop-blur-xl">
                         <tr className="text-xs text-brand-text-secondary">
@@ -203,7 +217,7 @@ function UsersTable({
                             <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">نقش</th>
                             <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">وضعیت</th>
                             <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">تماس</th>
-                            <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">کد پروفایل</th>
+                            <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">تاریخ عضویت</th>
                             <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">عملیات</th>
                         </tr>
                     </thead>
@@ -212,6 +226,8 @@ function UsersTable({
                             users.map((user) => {
                                 const role = getNormalizedUserRole(user);
                                 const displayName = getDisplayName(user);
+                                const personName = getPersonName(user);
+                                const logoUrl = resolveMediaUrl(user.business_logo);
                                 const canApprove = user.status !== "APPROVED";
                                 const canReject = user.status !== "REJECTED";
 
@@ -219,14 +235,23 @@ function UsersTable({
                                     <tr key={String(user.id)} className="group transition hover:bg-white/[0.035]">
                                         <td className="border-b border-white/5 px-4 py-3">
                                             <div className="flex items-center gap-3">
-                                                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-silver-dark/20 bg-silver-light/10 text-silver-light">
-                                                    <UserRound className="h-4 w-4" />
+                                                <div className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg border border-silver-dark/20 bg-silver-light/10 text-silver-light">
+                                                    {logoUrl ? (
+                                                        <span
+                                                            role="img"
+                                                            aria-label={displayName}
+                                                            className="h-full w-full bg-cover bg-center"
+                                                            style={{ backgroundImage: `url("${logoUrl.replace(/"/g, "%22")}")` }}
+                                                        />
+                                                    ) : (
+                                                        <UserRound className="h-4 w-4" />
+                                                    )}
                                                 </div>
                                                 <div className="min-w-0">
                                                     <Link href={`/stores/${encodeURIComponent(String(user.id))}`} className="block truncate font-bold text-brand-text-primary transition hover:text-silver-light">
                                                         {displayName}
                                                     </Link>
-                                                    <p className="mt-1 truncate text-xs text-brand-text-secondary">{user.business_handler || user.email || "بدون شناسه"}</p>
+                                                    <p className="mt-1 truncate text-xs text-brand-text-secondary">{personName}</p>
                                                 </div>
                                             </div>
                                         </td>
@@ -254,8 +279,8 @@ function UsersTable({
                                                 <span className="truncate">{user.username || user.telephone || "ثبت نشده"}</span>
                                             </div>
                                         </td>
-                                        <td className="border-b border-white/5 px-4 py-3 text-center font-medium text-brand-text-secondary">
-                                            {user.business_profile_id ?? "ندارد"}
+                                        <td className="border-b border-white/5 px-4 py-3 text-center font-medium text-brand-text-secondary" dir="ltr">
+                                            {getMembershipDate(user)}
                                         </td>
                                         <td className="border-b border-white/5 px-4 py-3">
                                             <div className="flex justify-center gap-2">

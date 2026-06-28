@@ -599,22 +599,20 @@ function SponsorIdentity({
 function EmployeeBusinessPrompt({
     profile,
     choice,
-    isSearching,
     onChoice,
 }: {
     profile: BusinessProfile | null;
     choice: EmployeeRegistrationChoice;
-    isSearching: boolean;
     onChoice: (choice: Exclude<EmployeeRegistrationChoice, null>) => void;
 }) {
-    if (!profile && !isSearching) {
+    if (!profile) {
         return null;
     }
 
     return (
         <div className="md:col-span-2">
             <div className="rounded-2xl border border-silver-light/20 bg-brand-base/55 p-4 text-right shadow-inner shadow-black/10">
-                {isSearching && !profile ? (
+                {false ? (
                     <p className="text-sm font-medium leading-7 text-brand-text-secondary">
                         در حال بررسی نام فروشگاه...
                     </p>
@@ -948,9 +946,7 @@ function RegisterPageContent() {
         Boolean(matchedBusinessProfile);
 
     const shouldShowStoreDetails =
-        !matchedBusinessProfile ||
-        employeeRegistrationChoice ===
-        "business_owner";
+        employeeRegistrationChoice !== "employee";
 
     const isSubmittingRegister =
         registerMutation.isPending ||
@@ -1825,9 +1821,6 @@ function RegisterPageContent() {
                                     }
                                     choice={
                                         employeeRegistrationChoice
-                                    }
-                                    isSearching={
-                                        businessProfileSearchQuery.isFetching
                                     }
                                     onChoice={
                                         handleEmployeeRegistrationChoice

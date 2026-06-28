@@ -33,7 +33,7 @@ import {
 } from "@/lib/business-path";
 
 import { resolveMediaUrl } from "@/lib/media-url";
-import { normalizeMobileUsername } from "@/services/api/auth";
+import { ActiveOtpCodeError, normalizeMobileUsername } from "@/services/api/auth";
 
 import LOGO from "@/../public/assets/images/logo.png";
 
@@ -315,6 +315,26 @@ function LoginPageContent() {
         }
     };
 
+    const goToOtpPage = (
+        isRegistered = true,
+        message = "کد تایید ارسال شد"
+    ) => {
+        const params = new URLSearchParams({
+            username: normalizedUsername,
+            business_handler:
+                parentBusinessHandler,
+            flow: isRegistered
+                ? "login"
+                : "register",
+        });
+
+        toast.success(message);
+
+        router.replace(
+            `/otp?${params.toString()}`
+        );
+    };
+
     const handleSubmit = async (
         event: FormEvent<HTMLFormElement>
     ) => {
@@ -325,6 +345,9 @@ function LoginPageContent() {
                 await sendOtpMutation.mutateAsync({
                     phone_number: normalizedUsername,
                 });
+
+            goToOtpPage(response.is_registered);
+            return;
 
             const params = new URLSearchParams({
                 username: normalizedUsername,
@@ -341,6 +364,14 @@ function LoginPageContent() {
                 `/otp?${params.toString()}`
             );
         } catch (error) {
+            if (error instanceof ActiveOtpCodeError) {
+                goToOtpPage(
+                    error.isRegistered ?? true,
+                    "کد قبلاً ارسال شده؛ همان کد را وارد کنید"
+                );
+                return;
+            }
+
             const message =
                 error instanceof Error
                     ? error.message
