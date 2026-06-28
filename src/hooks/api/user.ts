@@ -11,17 +11,35 @@ import {
     normalizeCurrentUserResponse,
     normalizeUsersResponse,
 } from "@/services/api/user";
-import { getAccessToken } from "@/lib/auth-storage";
+import { getAccessToken, getRefreshToken } from "@/lib/auth-storage";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
 import type { ApiUser, BusinessProfile, BusinessProfileUpdatePayload, CurrentUser, CurrentUserResponse, ManagedUser, PublicBusinessProfile, UsersQueryParams, UsersResponse } from "@/types/api/user";
+
+function getQueryErrorStatus(error: Error): number | undefined {
+    const maybeAxiosError = error as Error & {
+        response?: {
+            status?: number;
+        };
+    };
+
+    return maybeAxiosError.response?.status;
+}
 
 export function useCurrentUserQuery() {
     return useQuery<CurrentUserResponse, Error, CurrentUser>({
         queryKey: ["api", "users", "me"],
         queryFn: getCurrentUser,
         select: normalizeCurrentUserResponse,
-        enabled: Boolean(getAccessToken()),
-        retry: false,
+        enabled: Boolean(getAccessToken() || getRefreshToken()),
+        retry: (failureCount, error) => {
+            const status = getQueryErrorStatus(error);
+
+            if (status === 401 || status === 403) {
+                return false;
+            }
+
+            return failureCount < 2;
+        },
         staleTime: 0,
         refetchOnMount: "always",
         refetchOnWindowFocus: true,

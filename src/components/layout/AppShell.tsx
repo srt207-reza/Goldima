@@ -23,7 +23,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useCurrentUserQuery, useLogoutMutation } from "@/hooks/api";
-import { clearAuthTokens, getRefreshToken } from "@/lib/auth-storage";
+import { clearAuthTokens, getAccessToken, getRefreshToken } from "@/lib/auth-storage";
 import { canViewPricingTools, canViewUserManagement, getBusinessLabel, getNormalizedUserRole } from "@/lib/user-role";
 import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import { AmbientBackground } from "@/components/ui/ambient-background";
@@ -172,9 +172,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (hideShell || isLoadingCurrentUser) return;
 
-        if (isCurrentUserError || !currentUser) {
+        if (isCurrentUserError && !getAccessToken() && !getRefreshToken()) {
             clearAuthTokens();
             router.replace("/login");
+            return;
+        }
+
+        if (isCurrentUserError || !currentUser) {
             return;
         }
 
@@ -244,24 +248,29 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const mainOffset = sidebarCollapsed ? "lg:pr-20" : "lg:pr-72";
 
     return (
-        <div className="relative min-h-screen overflow-hidden border border-white/5 bg-brand-base text-brand-text-primary shadow-[0_25px_90px_rgba(2,6,23,0.28)]">
+        <div
+            className={[
+                "relative overflow-hidden bg-brand-base text-brand-text-primary shadow-[0_25px_90px_rgba(2,6,23,0.28)] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                dashboardFullscreen ? "h-dvh min-h-dvh border-transparent" : "min-h-screen border border-white/5",
+            ].join(" ")}
+        >
             <AmbientBackground className="opacity-70" dense />
             <div
                 className={[
                     "fixed inset-0 z-40 bg-black/55 backdrop-blur-sm transition-opacity duration-500 ease-out lg:hidden",
-                    dashboardFullscreen ? "hidden" : "",
-                    mobileMenuOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0",
+                    dashboardFullscreen || !mobileMenuOpen ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100",
                 ].join(" ")}
                 onClick={() => setMobileMenuOpen(false)}
             />
 
             <aside
                 className={[
-                    "fixed right-0 top-0 z-50 h-screen w-72 transform-gpu border-l border-white/5 bg-brand-surface/95 shadow-2xl shadow-black/25 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform lg:duration-300",
-                    dashboardFullscreen ? "hidden" : "",
+                    "fixed right-0 top-0 z-50 h-dvh w-72 transform-gpu border-l border-white/5 bg-brand-surface/95 shadow-2xl shadow-black/25 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
+                    dashboardFullscreen ? "pointer-events-none translate-x-full opacity-0 blur-sm" : "",
                     sidebarWidth,
                     mobileMenuOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0",
                 ].join(" ")}
+                aria-hidden={dashboardFullscreen}
             >
                 <div className="flex h-full flex-col">
                     <div className="flex h-20 items-center justify-between border-b border-white/5 px-4">
@@ -399,10 +408,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
             <header
                 className={[
-                    "fixed top-0 left-0 right-0 z-40 h-20 border-b border-white/5 bg-brand-surface/85 backdrop-blur-xl transition-all duration-300",
-                    dashboardFullscreen ? "hidden" : "",
+                    "fixed top-0 left-0 right-0 z-40 h-20 transform-gpu border-b border-white/5 bg-brand-surface/85 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
+                    dashboardFullscreen ? "pointer-events-none -translate-y-full opacity-0 blur-sm" : "translate-y-0 opacity-100 blur-0",
                     headerOffset,
                 ].join(" ")}
+                aria-hidden={dashboardFullscreen}
             >
                 <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
                     <div className="flex min-w-0 items-center gap-3">
@@ -442,7 +452,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 <button
                     type="button"
                     onClick={() => setDashboardFullscreen(false)}
-                    className="fixed left-4 top-4 z-50 inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-silver-dark/20 bg-brand-surface/90 px-4 text-sm font-semibold text-brand-text-primary shadow-2xl shadow-black/25 backdrop-blur-xl transition hover:border-silver-light/30 hover:bg-brand-card/90"
+                    className="fixed left-4 top-4 z-50 inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-silver-dark/20 bg-brand-surface/90 px-4 text-sm font-semibold text-brand-text-primary shadow-2xl shadow-black/25 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-300 hover:border-silver-light/30 hover:bg-brand-card/90"
                     aria-label="خروج از حالت تمام‌صفحه"
                     title="خروج از تمام‌صفحه"
                 >
@@ -451,8 +461,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 </button>
             )}
 
-            <main className={dashboardFullscreen ? "relative z-10 min-h-screen" : ["relative z-10 pt-20 transition-[padding-right] duration-300", mainOffset].join(" ")}>
-                <div className={dashboardFullscreen ? "min-h-screen w-full bg-brand-surface/25 p-0 backdrop-blur-[1px]" : "min-h-[calc(100vh-5rem)] w-full bg-brand-surface/25 p-0 backdrop-blur-[1px]"}>
+            <main className={dashboardFullscreen ? "relative z-10 h-dvh min-h-dvh overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]" : ["relative z-10 pt-20 transition-[padding-right] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]", mainOffset].join(" ")}>
+                <div className={dashboardFullscreen ? "h-dvh min-h-dvh w-full overflow-hidden bg-brand-surface/25 p-0 backdrop-blur-[1px] [&>main]:h-dvh [&>main]:min-h-dvh" : "min-h-[calc(100dvh-5rem)] w-full bg-brand-surface/25 p-0 backdrop-blur-[1px] [&>main]:min-h-[calc(100dvh-5rem)]"}>
                     {children}
                 </div>
             </main>

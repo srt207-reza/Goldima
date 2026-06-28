@@ -1,25 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "framer-motion";
 import {
     CheckCircle2,
     Clock3,
     Eye,
-    Mail,
-    MapPin,
     Phone,
-    SearchX,
+    Search,
     ShieldCheck,
-    Store,
     UserCheck,
     UserRound,
     XCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
-import { MagicCard } from "@/components/ui/magic-card";
 import { useCurrentUserQuery, useUpdateUserMutation, useUsersQuery } from "@/hooks/api";
 import { canViewUserManagement, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
 import type { ManagedUser, UserStatus } from "@/types/api/user";
@@ -32,6 +29,10 @@ type StatusConfig = {
     icon: typeof Clock3;
     accent: string;
 };
+
+type StatusFilter = UserStatus | "ALL";
+
+const PAGE_SIZE = 20;
 
 const STATUS_CONFIGS: StatusConfig[] = [
     {
@@ -66,6 +67,14 @@ const ROLE_LABELS: Record<NormalizedUserRole, string> = {
     retail: "تک‌فروش",
     unknown: "نامشخص",
 };
+
+const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
+    { value: "ALL", label: "همه" },
+    ...STATUS_CONFIGS.map((config) => ({
+        value: config.status,
+        label: config.title,
+    })),
+];
 
 function LoadingState() {
     return (
@@ -141,156 +150,161 @@ function mergeUsersById(groups: Array<ManagedUser[] | undefined>): ManagedUser[]
     return Array.from(usersById.values());
 }
 
-function UserCard({
-    user,
-    onStatusChange,
-    isMutating,
-}: {
-    user: ManagedUser;
-    onStatusChange: (user: ManagedUser, status: UserStatus) => void;
-    isMutating: boolean;
-}) {
-    const role = getNormalizedUserRole(user);
-    const displayName = getDisplayName(user);
-    const canApprove = user.status !== "APPROVED";
-    const canReject = user.status !== "REJECTED";
+function getStatusTone(status: UserStatus): string {
+    if (status === "APPROVED") {
+        return "border-emerald-300/25 bg-emerald-400/10 text-emerald-100";
+    }
 
-    return (
-        <MagicCard className="rounded-2xl bg-brand-base/55 p-4 shadow-[0_14px_34px_rgba(0,0,0,0.18)]" withBorderBeam={false}>
-            <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                    <h3 className="truncate text-base font-bold text-brand-text-primary">{displayName}</h3>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                        <span className="inline-flex items-center gap-1 rounded-md border border-silver-dark/25 bg-white/5 px-2 py-1 text-brand-text-secondary">
-                            <UserRound className="h-3.5 w-3.5" />
-                            {ROLE_LABELS[role]}
-                        </span>
-                        {user.is_employee ? (
-                            <span className="inline-flex items-center gap-1 rounded-md border border-emerald-300/25 bg-emerald-400/10 px-2 py-1 font-bold text-emerald-100">
-                                <UserCheck className="h-3.5 w-3.5" />
-                                کارمند
-                            </span>
-                        ) : null}
-                        <span className="inline-flex rounded-md border border-silver-dark/25 bg-white/5 px-2 py-1 text-brand-text-secondary">
-                            کد پروفایل: {user.business_profile_id ?? "ندارد"}
-                        </span>
-                    </div>
-                </div>
+    if (status === "REJECTED") {
+        return "border-rose-300/25 bg-rose-400/10 text-rose-100";
+    }
 
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-silver-dark/20 bg-silver-light/10 text-silver-light">
-                    <Store className="h-5 w-5" />
-                </div>
-            </div>
-
-            <div className="mt-4 space-y-2 text-sm text-brand-text-secondary">
-                <p className="flex items-center gap-2 break-all" dir="ltr">
-                    <Phone className="h-4 w-4 shrink-0 text-silver-light" />
-                    {user.username || user.telephone || "شماره ثبت نشده"}
-                </p>
-                {user.email ? (
-                    <p className="flex items-center gap-2 break-all" dir="ltr">
-                        <Mail className="h-4 w-4 shrink-0 text-silver-light" />
-                        {user.email}
-                    </p>
-                ) : null}
-                {user.address ? (
-                    <p className="line-clamp-2 flex items-start gap-2 leading-7">
-                        <MapPin className="mt-1 h-4 w-4 shrink-0 text-silver-light" />
-                        <span>{user.address}</span>
-                    </p>
-                ) : null}
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-2">
-                <Link
-                    href={`/stores/${encodeURIComponent(String(user.id))}`}
-                    className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 text-sm font-medium text-brand-text-primary transition hover:bg-white/10"
-                >
-                    <Eye className="h-4 w-4" />
-                    جزئیات
-                </Link>
-
-                {canApprove ? (
-                    <button
-                        type="button"
-                        onClick={() => onStatusChange(user, "APPROVED")}
-                        disabled={isMutating}
-                        className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <CheckCircle2 className="h-4 w-4" />
-                        تایید
-                    </button>
-                ) : (
-                    <button
-                        type="button"
-                        onClick={() => onStatusChange(user, "REJECTED")}
-                        disabled={!canReject || isMutating}
-                        className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border border-rose-300/25 bg-rose-400/10 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                        <XCircle className="h-4 w-4" />
-                        رد
-                    </button>
-                )}
-            </div>
-
-            {canApprove && canReject ? (
-                <button
-                    type="button"
-                    onClick={() => onStatusChange(user, "REJECTED")}
-                    disabled={isMutating}
-                    className="mt-2 inline-flex h-10 w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-rose-300/20 px-3 text-sm font-medium text-rose-100 transition hover:bg-rose-400/10 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                    <XCircle className="h-4 w-4" />
-                    رد درخواست
-                </button>
-            ) : null}
-        </MagicCard>
-    );
+    return "border-amber-300/25 bg-amber-400/10 text-amber-100";
 }
 
-function StatusColumn({
-    config,
+function getSearchText(user: ManagedUser): string {
+    return [
+        getDisplayName(user),
+        user.username,
+        user.telephone,
+        user.email,
+        user.business_handler,
+        user.business_profile_id,
+    ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+}
+
+function UsersTable({
     users,
     onStatusChange,
     isMutating,
 }: {
-    config: StatusConfig;
     users: ManagedUser[];
     onStatusChange: (user: ManagedUser, status: UserStatus) => void;
     isMutating: boolean;
 }) {
-    const Icon = config.icon;
-
     return (
-        <Card className={`min-h-[26rem] overflow-hidden rounded-3xl border bg-brand-surface/80 p-4 text-right shadow-deep-card backdrop-blur-xl ${config.accent}`}>
-            <div className="flex items-center justify-between gap-3">
-                <div>
-                    <div className="flex items-center gap-2">
-                        <Icon className="h-5 w-5" />
-                        <h2 className="text-lg font-bold text-brand-text-primary">{config.title}</h2>
-                    </div>
-                    <p className="mt-1 text-xs text-brand-text-secondary">{config.caption}</p>
-                </div>
-                <span className="grid h-10 min-w-10 place-items-center rounded-lg border border-white/10 bg-white/5 px-3 text-sm font-bold text-brand-text-primary">
-                    {users.length}
-                </span>
-            </div>
+        <div className="overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/80 text-right shadow-deep-card backdrop-blur-xl">
+            <div className="max-h-[66dvh] overflow-auto">
+                <table className="w-full min-w-[980px] table-fixed border-separate border-spacing-0 text-sm">
+                    <colgroup>
+                        <col className="w-[28%]" />
+                        <col className="w-[14%]" />
+                        <col className="w-[14%]" />
+                        <col className="w-[18%]" />
+                        <col className="w-[10%]" />
+                        <col className="w-[16%]" />
+                    </colgroup>
+                    <thead className="sticky top-0 z-10 bg-brand-surface/95 backdrop-blur-xl">
+                        <tr className="text-xs text-brand-text-secondary">
+                            <th className="border-b border-white/10 px-4 py-3 text-right font-semibold">کاربر / فروشگاه</th>
+                            <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">نقش</th>
+                            <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">وضعیت</th>
+                            <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">تماس</th>
+                            <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">کد پروفایل</th>
+                            <th className="border-b border-white/10 px-4 py-3 text-center font-semibold">عملیات</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {users.length ? (
+                            users.map((user) => {
+                                const role = getNormalizedUserRole(user);
+                                const displayName = getDisplayName(user);
+                                const canApprove = user.status !== "APPROVED";
+                                const canReject = user.status !== "REJECTED";
 
-            <div className="mt-4 space-y-3">
-                {users.length ? (
-                    users.map((user) => (
-                        <UserCard key={String(user.id)} user={user} onStatusChange={onStatusChange} isMutating={isMutating} />
-                    ))
-                ) : (
-                    <div className="grid min-h-48 place-items-center rounded-lg border border-dashed border-white/10 bg-brand-base/35 p-6 text-center text-brand-text-secondary">
-                        <div>
-                            <SearchX className="mx-auto mb-3 h-8 w-8 text-silver-light/70" />
-                            <p className="text-sm">{config.emptyText}</p>
-                        </div>
-                    </div>
-                )}
+                                return (
+                                    <tr key={String(user.id)} className="group transition hover:bg-white/[0.035]">
+                                        <td className="border-b border-white/5 px-4 py-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-silver-dark/20 bg-silver-light/10 text-silver-light">
+                                                    <UserRound className="h-4 w-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <Link href={`/stores/${encodeURIComponent(String(user.id))}`} className="block truncate font-bold text-brand-text-primary transition hover:text-silver-light">
+                                                        {displayName}
+                                                    </Link>
+                                                    <p className="mt-1 truncate text-xs text-brand-text-secondary">{user.business_handler || user.email || "بدون شناسه"}</p>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="border-b border-white/5 px-4 py-3 text-center">
+                                            <div className="flex flex-wrap justify-center gap-1.5">
+                                                <span className="inline-flex items-center gap-1 rounded-lg border border-silver-dark/25 bg-white/5 px-2 py-1 text-xs text-brand-text-secondary">
+                                                    {ROLE_LABELS[role]}
+                                                </span>
+                                                {user.is_employee ? (
+                                                    <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-2 py-1 text-xs font-bold text-emerald-100">
+                                                        <UserCheck className="h-3.5 w-3.5" />
+                                                        کارمند
+                                                    </span>
+                                                ) : null}
+                                            </div>
+                                        </td>
+                                        <td className="border-b border-white/5 px-4 py-3 text-center">
+                                            <span className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-bold ${getStatusTone(user.status)}`}>
+                                                {STATUS_CONFIGS.find((config) => config.status === user.status)?.title ?? user.status}
+                                            </span>
+                                        </td>
+                                        <td className="border-b border-white/5 px-4 py-3 text-center">
+                                            <div className="inline-flex max-w-full items-center justify-center gap-2 text-brand-text-secondary" dir="ltr">
+                                                <Phone className="h-4 w-4 shrink-0 text-silver-light" />
+                                                <span className="truncate">{user.username || user.telephone || "ثبت نشده"}</span>
+                                            </div>
+                                        </td>
+                                        <td className="border-b border-white/5 px-4 py-3 text-center font-medium text-brand-text-secondary">
+                                            {user.business_profile_id ?? "ندارد"}
+                                        </td>
+                                        <td className="border-b border-white/5 px-4 py-3">
+                                            <div className="flex justify-center gap-2">
+                                                <Link
+                                                    href={`/stores/${encodeURIComponent(String(user.id))}`}
+                                                    className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-silver-dark/25 bg-white/5 text-brand-text-primary transition hover:bg-white/10"
+                                                    title="جزئیات"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </Link>
+                                                {canApprove ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onStatusChange(user, "APPROVED")}
+                                                        disabled={isMutating}
+                                                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-emerald-300/25 bg-emerald-400/10 text-emerald-100 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                        title="تایید"
+                                                    >
+                                                        <CheckCircle2 className="h-4 w-4" />
+                                                    </button>
+                                                ) : null}
+                                                {canReject ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onStatusChange(user, "REJECTED")}
+                                                        disabled={isMutating}
+                                                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-rose-300/25 bg-rose-400/10 text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                        title="رد"
+                                                    >
+                                                        <XCircle className="h-4 w-4" />
+                                                    </button>
+                                                ) : null}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                );
+                            })
+                        ) : (
+                            <tr>
+                                <td colSpan={6} className="px-4 py-12 text-center text-brand-text-secondary">
+                                    <Search className="mx-auto mb-3 h-8 w-8 text-silver-light/70" />
+                                    کاربری با این فیلترها پیدا نشد.
+                                </td>
+                            </tr>
+                        )}
+                    </tbody>
+                </table>
             </div>
-        </Card>
+        </div>
     );
 }
 
@@ -301,6 +315,9 @@ export default function StoresPage() {
     const approvedUsersQuery = useUsersQuery({ status: "APPROVED" });
     const rejectedUsersQuery = useUsersQuery({ status: "REJECTED" });
     const updateUserMutation = useUpdateUserMutation();
+    const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
+    const [searchTerm, setSearchTerm] = useState("");
+    const [page, setPage] = useState(1);
 
     const isUsersLoading = pendingUsersQuery.isLoading || approvedUsersQuery.isLoading || rejectedUsersQuery.isLoading;
     const isUsersError = pendingUsersQuery.isError || approvedUsersQuery.isError || rejectedUsersQuery.isError;
@@ -336,6 +353,23 @@ export default function StoresPage() {
             ),
         [visibleUsers],
     );
+
+    const filteredUsers = useMemo(() => {
+        const normalizedSearch = searchTerm.trim().toLowerCase();
+
+        return visibleUsers.filter((user) => {
+            const matchesStatus = statusFilter === "ALL" || user.status === statusFilter;
+            const matchesSearch = !normalizedSearch || getSearchText(user).includes(normalizedSearch);
+
+            return matchesStatus && matchesSearch;
+        });
+    }, [searchTerm, statusFilter, visibleUsers]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredUsers.length / PAGE_SIZE));
+    const safePage = Math.min(page, totalPages);
+    const paginatedUsers = filteredUsers.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+    const firstVisibleRow = filteredUsers.length ? (safePage - 1) * PAGE_SIZE + 1 : 0;
+    const lastVisibleRow = Math.min(safePage * PAGE_SIZE, filteredUsers.length);
 
     const currentRole = getNormalizedUserRole(currentUser);
 
@@ -396,17 +430,99 @@ export default function StoresPage() {
                         خطا در بارگذاری کاربران
                     </Card>
                 ) : (
-                    <div className="grid gap-4 xl:grid-cols-3">
-                        {STATUS_CONFIGS.map((config) => (
-                            <StatusColumn
-                                key={config.status}
-                                config={config}
-                                users={usersByStatus[config.status]}
-                                onStatusChange={handleStatusChange}
-                                isMutating={updateUserMutation.isPending}
-                            />
-                        ))}
-                    </div>
+                    <>
+                        <Card className="border border-silver-dark/20 bg-brand-surface/80 p-4 text-right backdrop-blur-xl">
+                            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                                <label className="relative block">
+                                    <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-silver-light" />
+                                    <input
+                                        value={searchTerm}
+                                        onChange={(event) => {
+                                            setSearchTerm(event.target.value);
+                                            setPage(1);
+                                        }}
+                                        placeholder="جستجو بر اساس نام، شماره، ایمیل یا شناسه فروشگاه"
+                                        className="h-11 w-full rounded-xl border border-brand-border/80 bg-brand-base/45 pr-10 pl-4 text-sm text-brand-text-primary outline-none transition focus:border-silver-light/70 focus:ring-2 focus:ring-silver-light/25"
+                                    />
+                                </label>
+
+                                <div className="flex flex-wrap gap-2">
+                                    {STATUS_FILTERS.map((filter) => {
+                                        const active = statusFilter === filter.value;
+
+                                        return (
+                                            <button
+                                                key={filter.value}
+                                                type="button"
+                                                onClick={() => {
+                                                    setStatusFilter(filter.value);
+                                                    setPage(1);
+                                                }}
+                                                className={[
+                                                    "relative h-10 cursor-pointer overflow-hidden rounded-xl border px-4 text-sm font-bold transition",
+                                                    active
+                                                        ? "border-silver-light/35 text-brand-text-primary shadow-silver-glow"
+                                                        : "border-silver-dark/20 bg-white/[0.04] text-brand-text-secondary hover:border-silver-light/25 hover:text-brand-text-primary",
+                                                ].join(" ")}
+                                            >
+                                                {active ? (
+                                                    <motion.span
+                                                        layoutId="stores-status-active-pill"
+                                                        className="absolute inset-0 rounded-xl bg-silver-light/12"
+                                                        transition={{ type: "spring", stiffness: 420, damping: 36 }}
+                                                    />
+                                                ) : null}
+                                                <span className="relative z-10">{filter.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        </Card>
+
+                        <AnimatePresence mode="wait">
+                            <motion.div
+                                key={statusFilter}
+                                initial={{ opacity: 0, y: 10, filter: "blur(6px)" }}
+                                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                                exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
+                                transition={{ duration: 0.22, ease: "easeOut" }}
+                            >
+                                <UsersTable
+                                    users={paginatedUsers}
+                                    onStatusChange={handleStatusChange}
+                                    isMutating={updateUserMutation.isPending}
+                                />
+                            </motion.div>
+                        </AnimatePresence>
+
+                        <div className="flex flex-col gap-3 rounded-2xl border border-silver-dark/20 bg-brand-surface/70 px-4 py-3 text-sm text-brand-text-secondary backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between">
+                            <p>
+                                نمایش {firstVisibleRow.toLocaleString("fa-IR")} تا {lastVisibleRow.toLocaleString("fa-IR")} از {filteredUsers.length.toLocaleString("fa-IR")} کاربر
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setPage((current) => Math.max(1, current - 1))}
+                                    disabled={safePage <= 1}
+                                    className="h-10 cursor-pointer rounded-xl border border-silver-dark/20 bg-white/[0.04] px-4 font-bold text-brand-text-primary transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                    قبلی
+                                </button>
+                                <span className="min-w-20 text-center font-bold text-brand-text-primary">
+                                    {safePage.toLocaleString("fa-IR")} / {totalPages.toLocaleString("fa-IR")}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
+                                    disabled={safePage >= totalPages}
+                                    className="h-10 cursor-pointer rounded-xl border border-silver-dark/20 bg-white/[0.04] px-4 font-bold text-brand-text-primary transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-45"
+                                >
+                                    بعدی
+                                </button>
+                            </div>
+                        </div>
+                    </>
                 )}
             </div>
         </div>

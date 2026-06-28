@@ -72,11 +72,24 @@ const AUTH_PATHS = [
     "/api/phone/verify/",
     "/api/phone/login/",
     "/api/phone/register/",
+    "/api/phone/employee/register/",
     "/api/users/parent_profile/",
     "/register/",
     "/api/logout/",
     "/api/token/refresh/",
 ];
+
+function getAxiosStatusCode(error: unknown): number | undefined {
+    if (!axios.isAxiosError(error)) {
+        return undefined;
+    }
+
+    return error.response?.status;
+}
+
+function isInvalidRefreshStatus(status?: number): boolean {
+    return status === 400 || status === 401 || status === 403;
+}
 
 axiosInstance.interceptors.request.use(
     (config) => {
@@ -86,6 +99,8 @@ axiosInstance.interceptors.request.use(
 
         if (accessToken && !isAuthRoute) {
             config.headers.Authorization = `Bearer ${accessToken}`;
+        } else {
+            delete config.headers.Authorization;
         }
 
         return config;
@@ -129,13 +144,6 @@ axiosInstance.interceptors.response.use(
                         {
                             refresh: refreshToken,
                         },
-                        {
-                            headers: getAccessToken()
-                                ? {
-                                      Authorization: `Bearer ${getAccessToken()}`,
-                                  }
-                                : undefined,
-                        },
                     )
                     .then((response) => response.data)
                     .finally(() => {
@@ -152,7 +160,10 @@ axiosInstance.interceptors.response.use(
             originalConfig.headers.Authorization = `Bearer ${refreshedTokens.access}`;
             return axiosInstance(originalConfig);
         } catch (refreshError) {
-            clearAuthTokens();
+            if (isInvalidRefreshStatus(getAxiosStatusCode(refreshError))) {
+                clearAuthTokens();
+            }
+
             return Promise.reject(refreshError);
         }
     },

@@ -5,9 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+    ArrowLeft,
     ArrowRight,
     Building2,
+    Check,
     CheckCircle2,
+    ChevronDown,
     ClipboardList,
     Mail,
     MapPin,
@@ -49,6 +52,12 @@ type DetailFormState = {
     telephone: string;
 };
 
+type DropdownOption<T extends string> = {
+    value: T;
+    label: string;
+    caption?: string;
+};
+
 const ROLE_LABELS: Record<NormalizedUserRole, string> = {
     reference: "مرجع",
     wholesale: "عمده‌فروش",
@@ -67,6 +76,18 @@ const USER_ROLE_LABELS: Record<"MASTER" | "WHOLESALER" | "RETAIL", string> = {
     WHOLESALER: "عمده‌فروش",
     RETAIL: "تک‌فروش",
 };
+
+const STATUS_OPTIONS: DropdownOption<UserStatus>[] = [
+    { value: "PENDING", label: STATUS_LABELS.PENDING, caption: "حساب هنوز منتظر تایید است" },
+    { value: "APPROVED", label: STATUS_LABELS.APPROVED, caption: "دسترسی کاربر فعال می‌شود" },
+    { value: "REJECTED", label: STATUS_LABELS.REJECTED, caption: "درخواست کاربر رد می‌شود" },
+];
+
+const ROLE_OPTIONS: DropdownOption<UserRole>[] = [
+    { value: "RETAIL", label: USER_ROLE_LABELS.RETAIL, caption: "زیرمجموعه عمده‌فروش" },
+    { value: "WHOLESALER", label: USER_ROLE_LABELS.WHOLESALER, caption: "زیرمجموعه مرجع" },
+    { value: "MASTER", label: USER_ROLE_LABELS.MASTER, caption: "دسترسی مرجع" },
+];
 
 function getDisplayName(user: ManagedUser): string {
     return user.business_name || [user.first_name, user.last_name].filter(Boolean).join(" ").trim() || user.username || "بدون نام";
@@ -107,6 +128,99 @@ function canManageUser(currentUser: ManagedUser, targetUser: ManagedUser): boole
     }
 
     return false;
+}
+
+function DetailDropdown<T extends string>({
+    id,
+    value,
+    options,
+    placeholder,
+    onChange,
+}: {
+    id: string;
+    value: T;
+    options: DropdownOption<T>[];
+    placeholder: string;
+    onChange: (value: T) => void;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const selectedOption = options.find((option) => option.value === value);
+
+    return (
+        <div
+            className={`relative ${isOpen ? "z-[90]" : "z-0"}`}
+            onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                    setIsOpen(false);
+                }
+            }}
+        >
+            <button
+                id={id}
+                type="button"
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                onClick={() => setIsOpen((current) => !current)}
+                className={[
+                    "group flex h-11 w-full items-center justify-between gap-3 rounded-xl border px-4 text-right text-sm font-bold outline-none transition-all duration-300",
+                    "border-brand-border/80 bg-brand-base/50 text-brand-text-primary shadow-inner shadow-black/10",
+                    "hover:border-silver-dark/70 hover:bg-brand-base/70 focus:border-silver-light/70 focus:ring-2 focus:ring-silver-light/25",
+                    isOpen ? "border-silver-light/60 bg-brand-surface/80 shadow-silver-glow" : "",
+                ].join(" ")}
+            >
+                <span className="min-w-0 flex-1 truncate">
+                    {selectedOption?.label ?? placeholder}
+                </span>
+                <ChevronDown className={`h-4 w-4 shrink-0 text-silver-light transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`} />
+            </button>
+
+            {isOpen ? (
+                <div
+                    role="listbox"
+                    aria-labelledby={id}
+                    className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] max-h-72 w-full overflow-hidden rounded-2xl border border-silver-light/20 bg-brand-surface/95 p-1.5 text-right shadow-2xl shadow-black/40 backdrop-blur-2xl"
+                >
+                    <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-l from-transparent via-silver-light/70 to-transparent" />
+                    <div className="max-h-64 overflow-y-auto pr-1">
+                        {options.map((option) => {
+                            const selected = option.value === value;
+
+                            return (
+                                <button
+                                    key={option.value}
+                                    type="button"
+                                    role="option"
+                                    aria-selected={selected}
+                                    onClick={() => {
+                                        onChange(option.value);
+                                        setIsOpen(false);
+                                    }}
+                                    className={[
+                                        "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-right transition-all duration-200",
+                                        selected
+                                            ? "bg-silver-light/12 text-brand-text-primary shadow-inner shadow-silver-light/5"
+                                            : "text-brand-text-secondary hover:bg-white/[0.06] hover:text-brand-text-primary",
+                                    ].join(" ")}
+                                >
+                                    <span className="min-w-0">
+                                        <span className="block truncate text-sm font-bold">{option.label}</span>
+                                        {option.caption ? (
+                                            <span className="mt-1 block truncate text-xs text-brand-text-secondary">
+                                                {option.caption}
+                                            </span>
+                                        ) : null}
+                                    </span>
+                                    <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition ${selected ? "border-silver-light/45 bg-silver-light/15 text-silver-light" : "border-transparent text-transparent"}`}>
+                                        <Check className="h-4 w-4" />
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
 }
 
 function LoadingState() {
@@ -158,17 +272,23 @@ function UserEditor({
         formData.role === "WHOLESALER"
             ? [currentUser]
             : formData.role === "RETAIL"
-              ? [currentUser, ...wholesaleParentOptions]
-              : [];
+                ? [currentUser, ...wholesaleParentOptions]
+                : [];
+    const parentDropdownOptions: DropdownOption<string>[] = [
+        { value: "", label: "بدون والد", caption: "برای نقش مرجع استفاده می‌شود" },
+        ...parentOptions.map((option) => ({
+            value: String(option.id),
+            label: getDisplayName(option),
+            caption: option.business_name || option.username || undefined,
+        })),
+    ];
 
-    const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const handleChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = event.target;
         setFormData((prev) => ({ ...prev, [name]: value }));
     };
 
-    const handleRoleChange = (event: ChangeEvent<HTMLSelectElement>) => {
-        const nextRole = event.target.value as UserRole;
-
+    const handleRoleChange = (nextRole: UserRole) => {
         setFormData((prev) => ({
             ...prev,
             role: nextRole,
@@ -212,9 +332,9 @@ function UserEditor({
                     status: formData.status,
                     ...(canEditHierarchy
                         ? {
-                              role: formData.role,
-                              parent: formData.role === "MASTER" ? null : formData.parent || null,
-                          }
+                            role: formData.role,
+                            parent: formData.role === "MASTER" ? null : formData.parent || null,
+                        }
                         : {}),
                 },
             });
@@ -247,10 +367,6 @@ function UserEditor({
             <div className="overflow-hidden rounded-3xl border border-silver-dark/20 bg-brand-surface/85 text-right shadow-2xl shadow-black/20 backdrop-blur-xl">
                 <div className="grid gap-5 p-5 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div>
-                        <Link href="/stores" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-brand-text-secondary transition hover:text-brand-text-primary">
-                            <ArrowRight className="h-4 w-4" />
-                            بازگشت
-                        </Link>
                         <h1 className="mt-4 text-2xl font-bold text-brand-text-primary sm:text-3xl">{getDisplayName(user)}</h1>
                         <div className="mt-3 flex flex-wrap gap-2 text-sm text-brand-text-secondary">
                             <span className="inline-flex items-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 py-2">
@@ -274,7 +390,7 @@ function UserEditor({
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className={`grid ${user.status !== "APPROVED" ? "grid-cols-3": "grid-cols-2"} gap-2`}>
                         {user.status !== "APPROVED" ? (
                             <button
                                 type="button"
@@ -297,12 +413,16 @@ function UserEditor({
                                 رد
                             </button>
                         ) : null}
+                        <Link href="/stores" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-brand-text-secondary transition hover:text-brand-text-primary">
+                            بازگشت
+                            <ArrowLeft className="h-4 w-4" />
+                        </Link>
                     </div>
                 </div>
             </div>
 
-            <form onSubmit={handleSubmit} className="grid gap-5 xl:grid-cols-[1fr_0.8fr]">
-                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
+            <form onSubmit={handleSubmit} className="grid gap-5 overflow-visible xl:grid-cols-[1fr_0.8fr]">
+                <Card className="relative z-20 overflow-visible border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                     <div className="mb-5 flex items-center gap-2">
                         <UserRound className="h-5 w-5 text-silver-light" />
                         <h2 className="text-lg font-bold text-brand-text-primary">اطلاعات کاربری</h2>
@@ -337,17 +457,13 @@ function UserEditor({
                             <Label htmlFor="status" className="mb-2 block">
                                 وضعیت
                             </Label>
-                            <select
+                            <DetailDropdown
                                 id="status"
-                                name="status"
                                 value={formData.status}
-                                onChange={handleChange}
-                                className="flex h-11 w-full cursor-pointer rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
-                            >
-                                <option value="PENDING">در انتظار بررسی</option>
-                                <option value="APPROVED">تایید شده</option>
-                                <option value="REJECTED">رد شده</option>
-                            </select>
+                                options={STATUS_OPTIONS}
+                                placeholder="انتخاب وضعیت"
+                                onChange={(status) => setFormData((prev) => ({ ...prev, status }))}
+                            />
                         </div>
                         {canEditHierarchy ? (
                             <>
@@ -355,17 +471,13 @@ function UserEditor({
                                     <Label htmlFor="role" className="mb-2 block">
                                         نقش کاربر
                                     </Label>
-                                    <select
+                                    <DetailDropdown
                                         id="role"
-                                        name="role"
                                         value={formData.role}
+                                        options={ROLE_OPTIONS}
+                                        placeholder="انتخاب نقش"
                                         onChange={handleRoleChange}
-                                        className="flex h-11 w-full cursor-pointer rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
-                                    >
-                                        <option value="RETAIL">{USER_ROLE_LABELS.RETAIL}</option>
-                                        <option value="WHOLESALER">{USER_ROLE_LABELS.WHOLESALER}</option>
-                                        <option value="MASTER">{USER_ROLE_LABELS.MASTER}</option>
-                                    </select>
+                                    />
                                 </div>
 
                                 {formData.role !== "MASTER" ? (
@@ -373,20 +485,13 @@ function UserEditor({
                                         <Label htmlFor="parent" className="mb-2 block">
                                             {formData.role === "WHOLESALER" ? "مرجع این عمده‌فروش" : "والد / عمده‌فروش"}
                                         </Label>
-                                        <select
+                                        <DetailDropdown
                                             id="parent"
-                                            name="parent"
                                             value={formData.parent}
-                                            onChange={handleChange}
-                                            className="flex h-11 w-full cursor-pointer rounded-xl border border-brand-border/80 bg-brand-base/45 px-4 py-2 text-sm text-brand-text-primary focus:border-silver-light/70 focus:outline-none focus:ring-2 focus:ring-silver-light/25"
-                                        >
-                                            <option value="">بدون والد</option>
-                                            {parentOptions.map((option) => (
-                                                <option key={String(option.id)} value={String(option.id)}>
-                                                    {getDisplayName(option)}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            options={parentDropdownOptions}
+                                            placeholder="انتخاب والد"
+                                            onChange={(parent) => setFormData((prev) => ({ ...prev, parent }))}
+                                        />
                                     </div>
                                 ) : null}
                             </>
@@ -413,7 +518,7 @@ function UserEditor({
                     </div>
                 </Card>
 
-                <Card className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
+                <Card className="relative z-0 border border-silver-dark/20 bg-brand-surface/80 p-5 text-right shadow-deep-card backdrop-blur-xl">
                     <div className="mb-5 flex items-center gap-2">
                         <Building2 className="h-5 w-5 text-silver-light" />
                         <h2 className="text-lg font-bold text-brand-text-primary">اطلاعات کسب‌وکار</h2>
@@ -427,6 +532,12 @@ function UserEditor({
                             <Input id="business_name" name="business_name" value={formData.business_name} onChange={handleChange} />
                         </div>
                         <div>
+                            <Label htmlFor="telephone" className="mb-2 block">
+                                تلفن ثابت
+                            </Label>
+                            <Input id="telephone" name="telephone" value={formData.telephone} onChange={handleChange} dir="ltr" />
+                        </div>
+                        <div>
                             <Label htmlFor="province" className="mb-2 block">
                                 استان
                             </Label>
@@ -437,12 +548,6 @@ function UserEditor({
                                 شهر
                             </Label>
                             <Input id="city" name="city" value={formData.city} onChange={handleChange} />
-                        </div>
-                        <div>
-                            <Label htmlFor="telephone" className="mb-2 block">
-                                تلفن
-                            </Label>
-                            <Input id="telephone" name="telephone" value={formData.telephone} onChange={handleChange} dir="ltr" />
                         </div>
                         <div>
                             <Label htmlFor="address" className="mb-2 block">
