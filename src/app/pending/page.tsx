@@ -10,7 +10,6 @@ import { ShineBorder } from "@/components/ui/shine-border";
 import { useCurrentUserQuery, useLogoutMutation, useParentBusinessProfileQuery } from "@/hooks/api";
 import { clearAuthTokens, getAccessToken, getRefreshToken } from "@/lib/auth-storage";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, getReadableBusinessHandler, normalizeBusinessPathSegment } from "@/lib/business-path";
-import { getNormalizedUserRole } from "@/lib/user-role";
 
 const FloatingParticles = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -56,6 +55,16 @@ function OrganizationNotFound({ businessHandler }: { businessHandler: string }) 
     );
 }
 
+function getSuspendedAccessMessage(businessName: string, reason?: string | null): string {
+    const normalizedReason = reason?.trim();
+
+    if (normalizedReason) {
+        return normalizedReason;
+    }
+
+    return `فروشگاه ${businessName} که شما زیرمجموعه‌ش بودید متاسفانه مسدود شده و یا تغییراتی داشته است، جهت ادامه فعالیت با شماره پشتیبانی تماس بگیرید.`;
+}
+
 function PendingContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -64,10 +73,20 @@ function PendingContent() {
     const hasAuthToken = useMemo(() => Boolean(getAccessToken()), []);
 
     const parentBusinessHandler = normalizeBusinessPathSegment(searchParams.get("parent_business_handler") || "");
-    const userStatus = String(currentUser?.status ?? "PENDING").toUpperCase();
-    const currentRole = getNormalizedUserRole(currentUser);
+    const isCurrentUserActive = currentUser?.is_active !== false && currentUser?.business_profile_is_active !== false;
+    const userStatus = String(
+        isCurrentUserActive
+            ? currentUser?.status ?? searchParams.get("status") ?? "PENDING"
+            : "SUSPENDED"
+    ).toUpperCase();
     const isLinkedToParent = parentBusinessHandler !== "" && parentBusinessHandler !== DEFAULT_PARENT_BUSINESS_HANDLER;
     const parentProfileQuery = useParentBusinessProfileQuery(parentBusinessHandler);
+    const suspendedReason = currentUser?.suspend_reason || searchParams.get("suspend_reason");
+    const suspendedBusinessName =
+        parentProfileQuery.data?.business_name ||
+        searchParams.get("business_name") ||
+        currentUser?.business_name ||
+        (parentBusinessHandler ? getReadableBusinessHandler(parentBusinessHandler) : "مرتبط با شما");
 
     const handleLogout = async () => {
         const refresh = getRefreshToken();
@@ -101,11 +120,11 @@ function PendingContent() {
     useEffect(() => {
         if (!currentUser) return;
 
-        if ((currentRole === "reference" && !currentUser.is_employee) || userStatus === "APPROVED") {
+        if (userStatus === "APPROVED") {
             router.replace("/");
             router.refresh();
         }
-    }, [currentRole, currentUser, router, userStatus]);
+    }, [currentUser, router, userStatus]);
 
     if (isLinkedToParent && parentProfileQuery.isError) {
         return <OrganizationNotFound businessHandler={parentBusinessHandler} />;
@@ -122,17 +141,19 @@ function PendingContent() {
             <div className="relative mb-8">
 
                 <div className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-amber-200 text-sm font-medium mb-5">
-                    {userStatus === "REJECTED" ? "رد شده" : isFetching ? "در حال بررسی وضعیت..." : "در انتظار تایید مرجع"}
+                    {userStatus === "SUSPENDED" ? "تعلیق شده" : userStatus === "REJECTED" ? "رد شده" : isFetching ? "در حال بررسی وضعیت..." : "در انتظار تایید مرجع"}
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-wider">
                     <span className="bg-gradient-to-l from-silver-light via-silver-metallic to-silver-light bg-clip-text text-transparent animate-pulse">
-                        {userStatus === "REJECTED" ? "درخواست شما رد شده است" : "ثبت‌نام با موفقیت انجام شد!"}
+                        {userStatus === "SUSPENDED" ? "دسترسی حساب شما تعلیق شده است" : userStatus === "REJECTED" ? "درخواست شما رد شده است" : "ثبت‌نام با موفقیت انجام شد!"}
                     </span>
                 </h1>
 
                 <p className="text-brand-text-secondary text-justify leading-8">
-                    {userStatus === "REJECTED"
+                    {userStatus === "SUSPENDED"
+                        ? getSuspendedAccessMessage(suspendedBusinessName, suspendedReason)
+                        : userStatus === "REJECTED"
                         ? "برای فعال‌سازی حساب، با مرجع یا پشتیبانی سیستم هماهنگ کنید."
                         : `
                             پس از بررسی و تأیید مشخصات ثبت‌شده توسط بخش پشتیبانی، حساب کاربری فعال خواهد شد. در صورت وجود هرگونه نقص یا مغایرت در مشخصات ارسالی، جهت تکمیل مشخصات با شما تماس گرفته خواهد ‌شد.

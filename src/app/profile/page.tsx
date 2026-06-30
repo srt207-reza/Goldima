@@ -18,7 +18,6 @@ import {
     RotateCcw,
     Save,
     ShieldCheck,
-    Sparkles,
     Trash2,
     UserCheck,
     UserRound,
@@ -70,6 +69,7 @@ const STATUS_LABELS: Record<string, string> = {
     APPROVED: "تایید شده",
     PENDING: "در انتظار بررسی",
     REJECTED: "رد شده",
+    SUSPENDED: "تعلیق شده",
 };
 
 const PROFILE_TABS: TabConfig[] = [

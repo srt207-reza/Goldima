@@ -11,7 +11,7 @@ import { Card } from "@/components/ui/card";
 import { AmbientBackground } from "@/components/ui/ambient-background";
 import { ShineBorder } from "@/components/ui/shine-border";
 import { usePhoneLoginMutation, usePhoneRegisterMutation, useSendPhoneOtpMutation, useVerifyPhoneOtpMutation } from "@/hooks/api";
-import { getPostAuthUrl, getPendingUrl } from "@/lib/auth-routing";
+import { getPostAuthUrl, getPendingUrl, getSuspendedUrl } from "@/lib/auth-routing";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
 import { setAuthTokens } from "@/lib/auth-storage";
 import {
@@ -25,7 +25,7 @@ import {
     storedLogoUploadToFile,
     type PendingPhoneRegisterPayload,
 } from "@/lib/otp-flow";
-import { normalizeMobileUsername } from "@/services/api/auth";
+import { normalizeMobileUsername, SuspendedAccountError } from "@/services/api/auth";
 import LOGO from "@/../public/assets/images/logo.png";
 
 const createEmptyDigits = () => Array.from({ length: OTP_CODE_LENGTH }, () => "");
@@ -225,6 +225,14 @@ export default function OtpPageClient() {
             toast.success("ثبت‌نام با موفقیت انجام شد");
             router.replace(getPendingUrl(response.user_profile, businessHandler));
         } catch (error) {
+            if (error instanceof SuspendedAccountError) {
+                router.replace(getSuspendedUrl({
+                    parentBusinessHandler: businessHandler,
+                    reason: error.reason,
+                }));
+                return;
+            }
+
             const message = error instanceof Error ? error.message : isRegisterMode ? "ثبت‌نام با کد تایید با خطا مواجه شد" : "ورود با کد تایید با خطا مواجه شد";
             toast.error(message);
             setDigits(createEmptyDigits());

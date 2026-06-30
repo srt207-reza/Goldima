@@ -15,17 +15,17 @@ import {
     type KeyboardEvent,
 } from "react";
 import toast from "react-hot-toast";
-import { CheckCircle2, Edit, Edit2, Edit3, Loader2, XCircle } from "lucide-react";
+import { CheckCircle2, Edit, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { AmbientBackground } from "@/components/ui/ambient-background";
 import { ShineBorder } from "@/components/ui/shine-border";
 import { usePhoneLoginMutation, useSendPhoneOtpMutation, useVerifyPhoneOtpMutation } from "@/hooks/api";
+import { getPostAuthUrl, getSuspendedUrl } from "@/lib/auth-routing";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
 import { saveRegisterOtpSession } from "@/lib/otp-session";
 import { setAuthTokens } from "@/lib/auth-storage";
-import { normalizeDigits, normalizeMobileUsername } from "@/services/api/auth";
-import type { AuthBusinessProfile } from "@/types/api/auth";
+import { normalizeDigits, normalizeMobileUsername, SuspendedAccountError } from "@/services/api/auth";
 import LOGO from "@/../public/assets/images/logo.png";
 
 const OTP_LENGTH = 6;
@@ -34,28 +34,6 @@ type OtpFlow = "login" | "register";
 type OtpStatus = "idle" | "checking" | "success" | "error";
 
 const createEmptyOtpDigits = () => Array.from({ length: OTP_LENGTH }, () => "");
-
-function getPendingUrl(profile: AuthBusinessProfile, parentBusinessHandler?: string): string {
-    const params = new URLSearchParams({
-        business_handler: profile.business_handler ?? "",
-        business_name: profile.business_name ?? "",
-    });
-
-    if (parentBusinessHandler) {
-        params.set("parent_business_handler", parentBusinessHandler);
-    }
-
-    return `/pending?${params.toString()}`;
-}
-
-function getPostAuthUrl(profile: AuthBusinessProfile, parentBusinessHandler?: string): string {
-    const role = String(profile.user?.role ?? "").toUpperCase();
-    const status = String(profile.user?.status ?? "").toUpperCase();
-    const isEmployee = profile.user?.is_employee === true;
-
-    if ((!isEmployee && role === "MASTER") || status === "APPROVED") return "/";
-    return getPendingUrl(profile, parentBusinessHandler);
-}
 
 function normalizeOtpValue(value: string): string {
     return normalizeDigits(value).replace(/\D/g, "").slice(0, OTP_LENGTH);
@@ -373,6 +351,15 @@ export default function OtpPage() {
             await new Promise((resolve) => window.setTimeout(resolve, 420));
             router.replace(getPostAuthUrl(response.user_profile, parentBusinessHandler));
         } catch (error) {
+            if (error instanceof SuspendedAccountError) {
+                setOtpStatus("error");
+                router.replace(getSuspendedUrl({
+                    parentBusinessHandler,
+                    reason: error.reason,
+                }));
+                return;
+            }
+
             const message = error instanceof Error ? error.message : "کد تایید معتبر نیست";
             setOtpStatus("error");
             toast.error(message);

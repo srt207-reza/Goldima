@@ -24,6 +24,7 @@ import {
 import toast from "react-hot-toast";
 import { useCurrentUserQuery, useLogoutMutation } from "@/hooks/api";
 import { clearAuthTokens, getAccessToken, getRefreshToken } from "@/lib/auth-storage";
+import { getSuspendedUrl } from "@/lib/auth-routing";
 import { canViewPricingTools, canViewUserManagement, getBusinessLabel, getNormalizedUserRole } from "@/lib/user-role";
 import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import { AmbientBackground } from "@/components/ui/ambient-background";
@@ -36,10 +37,15 @@ type NavItem = {
     icon: typeof LayoutDashboard;
 };
 
+function getErrorStatus(error: unknown): number | undefined {
+    const maybeError = error as { response?: { status?: number } } | null;
+    return maybeError?.response?.status;
+}
+
 const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "share-link", "stores", "pricing"]);
 
 function isAuthRoute(pathname: string): boolean {
-    return ["/login", "/register", "/otp", "/pending"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
+    return ["/login", "/register", "/otp", "/pending", "/suspended"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
 }
 
 function isBusinessRegistrationRoute(pathname: string): boolean {
@@ -87,7 +93,12 @@ function BusinessLogoMark({
     return (
         <div className={`relative shrink-0 overflow-hidden ${logoSrc ? "border border-silver-dark/20 bg-brand-base/60" : ""} ${className}`}>
             {logoSrc ? (
-                <img src={logoSrc} alt={alt} className="h-full w-full object-cover" />
+                <span
+                    role="img"
+                    aria-label={alt}
+                    className="block h-full w-full bg-cover bg-center"
+                    style={{ backgroundImage: `url("${logoSrc.replace(/"/g, "%22")}")` }}
+                />
             ) : (
                 <Image src={LOGO} alt="GOLDIMA Logo" fill className="object-contain" priority />
             )}
@@ -136,7 +147,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const logoutMutation = useLogoutMutation();
-    const { data: currentUser, isLoading: isLoadingCurrentUser, isError: isCurrentUserError } = useCurrentUserQuery();
+    const { data: currentUser, isLoading: isLoadingCurrentUser, isError: isCurrentUserError, error: currentUserError } = useCurrentUserQuery();
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -153,7 +164,8 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const showPricingTools = useMemo(() => canViewPricingTools(currentUser), [currentUser]);
     const hasRoleTools = showUserManagementTools || showPricingTools;
     const isCurrentUserApproved = String(currentUser?.status ?? "").toUpperCase() === "APPROVED";
-    const isAllowedDashboardUser = Boolean(currentUser && ((role === "reference" && !isEmployee) || isCurrentUserApproved));
+    const isCurrentUserActive = currentUser?.is_active !== false && currentUser?.business_profile_is_active !== false;
+    const isAllowedDashboardUser = Boolean(currentUser && isCurrentUserApproved && isCurrentUserActive);
 
     const navItems: NavItem[] = [
         { href: "/", label: "داشبورد", icon: LayoutDashboard },
@@ -178,6 +190,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
             return;
         }
 
+        if (isCurrentUserError && getErrorStatus(currentUserError) === 403) {
+            router.replace(getSuspendedUrl({
+                reason: currentUserError instanceof Error ? currentUserError.message : undefined,
+            }));
+            return;
+        }
+
         if (isCurrentUserError || !currentUser) {
             return;
         }
@@ -185,6 +204,16 @@ export default function AppShell({ children }: { children: ReactNode }) {
         if (!isAllowedDashboardUser) {
             const params = new URLSearchParams();
             const businessHandler = normalizeBusinessPathSegment(currentUser.business_handler ?? "");
+            const status = String(currentUser.status ?? "").toUpperCase();
+
+            if (status === "SUSPENDED" || !isCurrentUserActive) {
+                router.replace(getSuspendedUrl({
+                    businessHandler,
+                    businessName: currentUser.business_name,
+                    reason: currentUser.suspend_reason,
+                }));
+                return;
+            }
 
             if (businessHandler) {
                 params.set("business_handler", businessHandler);
@@ -194,9 +223,13 @@ export default function AppShell({ children }: { children: ReactNode }) {
                 params.set("business_name", currentUser.business_name);
             }
 
+            if (currentUser.status) {
+                params.set("status", status);
+            }
+
             router.replace(`/pending${params.size ? `?${params.toString()}` : ""}`);
         }
-    }, [currentUser, hideShell, isAllowedDashboardUser, isCurrentUserError, isLoadingCurrentUser, router]);
+    }, [currentUser, currentUserError, hideShell, isAllowedDashboardUser, isCurrentUserActive, isCurrentUserError, isLoadingCurrentUser, router]);
 
     useEffect(() => {
         if (!dashboardFullscreen) return;

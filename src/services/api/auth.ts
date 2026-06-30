@@ -2,6 +2,7 @@ import axios, { type AxiosError } from "axios";
 import { isValidJalaaliDate } from "jalaali-js";
 import { axiosInstance } from "@/lib/axios";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, normalizeBusinessPathSegment } from "@/lib/business-path";
+import { DEFAULT_SUSPENDED_REASON } from "@/lib/auth-routing";
 import type {
     AuthTokenPairLike,
     AuthBusinessProfile,
@@ -36,6 +37,16 @@ export class ActiveOtpCodeError extends Error {
         super(message);
         this.name = "ActiveOtpCodeError";
         this.isRegistered = isRegistered;
+    }
+}
+
+export class SuspendedAccountError extends Error {
+    reason: string;
+
+    constructor(reason = DEFAULT_SUSPENDED_REASON) {
+        super(reason);
+        this.name = "SuspendedAccountError";
+        this.reason = reason;
     }
 }
 
@@ -264,6 +275,8 @@ function normalizeAuthUser(user: RawAuthUser): AuthUserDetail {
         status: String(user.status ?? ""),
         parent: typeof user.parent === "string" ? user.parent : null,
         is_employee: Boolean(user.is_employee),
+        is_active: typeof user.is_active === "boolean" ? user.is_active : true,
+        suspend_reason: typeof user.suspend_reason === "string" ? user.suspend_reason : null,
         last_login: typeof user.last_login === "string" ? user.last_login : null,
         date_joined: typeof user.date_joined === "string" ? user.date_joined : undefined,
     };
@@ -496,6 +509,10 @@ export async function phoneLogin(payload: PhoneLoginRequest): Promise<PhoneLogin
 
         return normalizePhoneAuthResponse<PhoneLoginResponse>(data);
     } catch (error) {
+        if (axios.isAxiosError(error) && error.response?.status === 403) {
+            throw new SuspendedAccountError(getApiErrorMessage(error, DEFAULT_SUSPENDED_REASON));
+        }
+
         throw new Error(getApiErrorMessage(error, "ورود با کد تایید با خطا مواجه شد."));
     }
 }

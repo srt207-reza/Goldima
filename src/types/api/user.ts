@@ -1,4 +1,4 @@
-export type UserStatus = "PENDING" | "APPROVED" | "REJECTED";
+export type UserStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
 
 export type UserRole = "MASTER" | "WHOLESALER" | "RETAIL" | "BUSINESS_HANDLER" | string;
 
@@ -16,6 +16,7 @@ export type ApiUser = {
     status: UserStatus;
     parent: string | null;
     is_employee?: boolean;
+    suspend_reason?: string | null;
     business?: BusinessProfile | null;
     business_name?: string;
     business_handler?: string | null;

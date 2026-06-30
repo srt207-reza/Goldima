@@ -48,6 +48,7 @@ import {
     getReadableBusinessHandler,
     normalizeBusinessPathSegment,
 } from "@/lib/business-path";
+import { getPostAuthUrl } from "@/lib/auth-routing";
 
 import {
     clearRegisterOtpSession,
@@ -61,7 +62,6 @@ import {
     normalizeMobileUsername,
 } from "@/services/api/auth";
 
-import type { AuthBusinessProfile } from "@/types/api/auth";
 import type { BusinessProfile } from "@/types/api/user";
 
 type Step = 1 | 2;
@@ -376,52 +376,6 @@ function validateStepTwo(
     }
 
     return null;
-}
-
-function getPendingUrl(
-    profile: AuthBusinessProfile,
-    parentBusinessHandler?: string
-): string {
-    const params = new URLSearchParams({
-        business_handler: profile.business_handler ?? "",
-        business_name: profile.business_name ?? "",
-    });
-
-    if (parentBusinessHandler) {
-        params.set(
-            "parent_business_handler",
-            parentBusinessHandler
-        );
-    }
-
-    return `/pending?${params.toString()}`;
-}
-
-function getPostAuthUrl(
-    profile: AuthBusinessProfile,
-    parentBusinessHandler?: string
-): string {
-    const role = String(
-        profile.user?.role ?? ""
-    ).toUpperCase();
-
-    const status = String(
-        profile.user?.status ?? ""
-    ).toUpperCase();
-    const isEmployee =
-        profile.user?.is_employee === true;
-
-    if (
-        (!isEmployee && role === "MASTER") ||
-        status === "APPROVED"
-    ) {
-        return "/";
-    }
-
-    return getPendingUrl(
-        profile,
-        parentBusinessHandler
-    );
 }
 
 function FieldError({

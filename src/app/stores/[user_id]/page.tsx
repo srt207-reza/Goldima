@@ -6,7 +6,7 @@ import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft,
-    ArrowRight,
+    Ban,
     Building2,
     Check,
     CheckCircle2,
@@ -26,6 +26,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { SuspendUserDialog } from "@/components/users/SuspendUserDialog";
 import {
     useCurrentUserQuery,
     useUpdateBusinessProfileMutation,
@@ -69,6 +70,7 @@ const STATUS_LABELS: Record<UserStatus, string> = {
     PENDING: "در انتظار بررسی",
     APPROVED: "تایید شده",
     REJECTED: "رد شده",
+    SUSPENDED: "تعلیق شده",
 };
 
 const USER_ROLE_LABELS: Record<"MASTER" | "WHOLESALER" | "RETAIL", string> = {
@@ -81,6 +83,7 @@ const STATUS_OPTIONS: DropdownOption<UserStatus>[] = [
     { value: "PENDING", label: STATUS_LABELS.PENDING, caption: "حساب هنوز منتظر تایید است" },
     { value: "APPROVED", label: STATUS_LABELS.APPROVED, caption: "دسترسی کاربر فعال می‌شود" },
     { value: "REJECTED", label: STATUS_LABELS.REJECTED, caption: "درخواست کاربر رد می‌شود" },
+    { value: "SUSPENDED", label: STATUS_LABELS.SUSPENDED, caption: "دسترسی حساب کاربر مسدود می‌شود" },
 ];
 
 const ROLE_OPTIONS: DropdownOption<UserRole>[] = [
@@ -260,11 +263,12 @@ function UserEditor({
     const updateUserMutation = useUpdateUserMutation();
     const updateProfileMutation = useUpdateBusinessProfileMutation();
     const [formData, setFormData] = useState<DetailFormState>(() => getInitialFormState(user));
+    const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
 
     const isSaving = updateUserMutation.isPending || updateProfileMutation.isPending;
     const role = getNormalizedUserRole(user);
     const currentRole = getNormalizedUserRole(currentUser);
-    const canEditHierarchy = currentRole === "reference";
+    const canEditHierarchy = currentRole === "reference" && currentUser.is_employee !== true;
     const wholesaleParentOptions = manageableUsers.filter(
         (item) => String(item.id) !== String(user.id) && getNormalizedUserRole(item) === "wholesale" && item.status === "APPROVED"
     );
@@ -303,18 +307,38 @@ function UserEditor({
         ]);
     };
 
-    const handleStatusChange = async (status: UserStatus) => {
+    const handleStatusChange = async (status: UserStatus, suspendReason?: string): Promise<boolean> => {
         try {
             await updateUserMutation.mutateAsync({
                 userId: user.id,
-                payload: { status },
+                payload: status === "SUSPENDED"
+                    ? { status, suspend_reason: suspendReason?.trim() || null }
+                    : { status },
             });
             setFormData((prev) => ({ ...prev, status }));
             await refreshQueries();
             toast.success(`وضعیت کاربر به ${STATUS_LABELS[status]} تغییر کرد`);
+            return true;
         } catch (error) {
             const message = error instanceof Error ? error.message : "تغییر وضعیت کاربر با خطا مواجه شد";
             toast.error(message);
+            return false;
+        }
+    };
+
+    const handleStatusSelect = (status: UserStatus) => {
+        if (status === "SUSPENDED" && formData.status !== "SUSPENDED") {
+            setIsSuspendDialogOpen(true);
+            return;
+        }
+
+        setFormData((prev) => ({ ...prev, status }));
+    };
+
+    const handleConfirmSuspend = async (reason: string) => {
+        const succeeded = await handleStatusChange("SUSPENDED", reason);
+        if (succeeded) {
+            setIsSuspendDialogOpen(false);
         }
     };
 
@@ -390,7 +414,7 @@ function UserEditor({
                         </div>
                     </div>
 
-                    <div className={`grid ${user.status !== "APPROVED" ? "grid-cols-3": "grid-cols-2"} gap-2`}>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                         {user.status !== "APPROVED" ? (
                             <button
                                 type="button"
@@ -411,6 +435,17 @@ function UserEditor({
                             >
                                 <XCircle className="h-4 w-4" />
                                 رد
+                            </button>
+                        ) : null}
+                        {user.status !== "SUSPENDED" ? (
+                            <button
+                                type="button"
+                                onClick={() => setIsSuspendDialogOpen(true)}
+                                disabled={isSaving}
+                                className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-300/25 bg-slate-400/10 px-4 text-sm font-medium text-slate-100 transition hover:bg-slate-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                                <Ban className="h-4 w-4" />
+                                تعلیق
                             </button>
                         ) : null}
                         <Link href="/stores" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-brand-text-secondary transition hover:text-brand-text-primary">
@@ -462,7 +497,7 @@ function UserEditor({
                                 value={formData.status}
                                 options={STATUS_OPTIONS}
                                 placeholder="انتخاب وضعیت"
-                                onChange={(status) => setFormData((prev) => ({ ...prev, status }))}
+                                onChange={handleStatusSelect}
                             />
                         </div>
                         {canEditHierarchy ? (
@@ -598,6 +633,14 @@ function UserEditor({
                     </div>
                 </div>
             </form>
+
+            <SuspendUserDialog
+                isOpen={isSuspendDialogOpen}
+                userName={getDisplayName(user)}
+                isSubmitting={isSaving}
+                onClose={() => setIsSuspendDialogOpen(false)}
+                onConfirm={handleConfirmSuspend}
+            />
         </div>
     );
 }

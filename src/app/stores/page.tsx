@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+    Ban,
     CheckCircle2,
     Clock3,
     Eye,
@@ -17,6 +18,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
+import { SuspendUserDialog } from "@/components/users/SuspendUserDialog";
 import { useCurrentUserQuery, useUpdateUserMutation, useUsersQuery } from "@/hooks/api";
 import { toPersianDisplayDate } from "@/lib/date-format";
 import { canViewUserManagement, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
@@ -61,6 +63,14 @@ const STATUS_CONFIGS: StatusConfig[] = [
         icon: XCircle,
         accent: "from-rose-400/20 via-rose-400/10 to-transparent text-rose-200 border-rose-300/20",
     },
+    {
+        status: "SUSPENDED",
+        title: "تعلیق شده",
+        caption: "دسترسی مسدود",
+        emptyText: "کاربر تعلیق‌شده‌ای وجود ندارد.",
+        icon: Ban,
+        accent: "from-slate-300/20 via-slate-400/10 to-transparent text-slate-100 border-slate-300/20",
+    },
 ];
 
 const ROLE_LABELS: Record<NormalizedUserRole, string> = {
@@ -81,7 +91,7 @@ const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
 function LoadingState() {
     return (
         <div className="px-4 py-8">
-            <div className="mx-auto grid w-full max-w-7xl gap-4 lg:grid-cols-3">
+            <div className="mx-auto grid w-full max-w-7xl gap-4 lg:grid-cols-4">
                 {STATUS_CONFIGS.map((config) => (
                     <Card key={config.status} className="border border-silver-dark/20 bg-brand-surface/80 p-5 text-right backdrop-blur-xl">
                         <div className="h-6 w-32 animate-pulse rounded bg-white/10" />
@@ -172,6 +182,10 @@ function getStatusTone(status: UserStatus): string {
         return "border-rose-300/25 bg-rose-400/10 text-rose-100";
     }
 
+    if (status === "SUSPENDED") {
+        return "border-slate-300/25 bg-slate-400/10 text-slate-100";
+    }
+
     return "border-amber-300/25 bg-amber-400/10 text-amber-100";
 }
 
@@ -193,10 +207,12 @@ function getSearchText(user: ManagedUser): string {
 function UsersTable({
     users,
     onStatusChange,
+    onSuspendClick,
     isMutating,
 }: {
     users: ManagedUser[];
     onStatusChange: (user: ManagedUser, status: UserStatus) => void;
+    onSuspendClick: (user: ManagedUser) => void;
     isMutating: boolean;
 }) {
     return (
@@ -230,6 +246,7 @@ function UsersTable({
                                 const logoUrl = resolveMediaUrl(user.business_logo);
                                 const canApprove = user.status !== "APPROVED";
                                 const canReject = user.status !== "REJECTED";
+                                const canSuspend = user.status !== "SUSPENDED";
 
                                 return (
                                     <tr key={String(user.id)} className="group transition hover:bg-white/[0.035]">
@@ -313,6 +330,17 @@ function UsersTable({
                                                         <XCircle className="h-4 w-4" />
                                                     </button>
                                                 ) : null}
+                                                {canSuspend ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => onSuspendClick(user)}
+                                                        disabled={isMutating}
+                                                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-slate-300/25 bg-slate-400/10 text-slate-100 transition hover:bg-slate-400/20 disabled:cursor-not-allowed disabled:opacity-50"
+                                                        title="تعلیق"
+                                                    >
+                                                        <Ban className="h-4 w-4" />
+                                                    </button>
+                                                ) : null}
                                             </div>
                                         </td>
                                     </tr>
@@ -339,13 +367,15 @@ export default function StoresPage() {
     const pendingUsersQuery = useUsersQuery({ status: "PENDING" });
     const approvedUsersQuery = useUsersQuery({ status: "APPROVED" });
     const rejectedUsersQuery = useUsersQuery({ status: "REJECTED" });
+    const suspendedUsersQuery = useUsersQuery({ status: "SUSPENDED" });
     const updateUserMutation = useUpdateUserMutation();
     const [statusFilter, setStatusFilter] = useState<StatusFilter>("ALL");
     const [searchTerm, setSearchTerm] = useState("");
     const [page, setPage] = useState(1);
+    const [suspendTarget, setSuspendTarget] = useState<ManagedUser | null>(null);
 
-    const isUsersLoading = pendingUsersQuery.isLoading || approvedUsersQuery.isLoading || rejectedUsersQuery.isLoading;
-    const isUsersError = pendingUsersQuery.isError || approvedUsersQuery.isError || rejectedUsersQuery.isError;
+    const isUsersLoading = pendingUsersQuery.isLoading || approvedUsersQuery.isLoading || rejectedUsersQuery.isLoading || suspendedUsersQuery.isLoading;
+    const isUsersError = pendingUsersQuery.isError || approvedUsersQuery.isError || rejectedUsersQuery.isError || suspendedUsersQuery.isError;
 
     const visibleUsers = useMemo(() => {
         if (!currentUser) return [];
@@ -354,6 +384,7 @@ export default function StoresPage() {
             pendingUsersQuery.data,
             approvedUsersQuery.data,
             rejectedUsersQuery.data,
+            suspendedUsersQuery.data,
         ])
             .filter((user) => canManageUser(currentUser, user))
             .sort((a, b) => {
@@ -361,7 +392,7 @@ export default function StoresPage() {
                 const bDate = Date.parse(b.business_profile_created_at ?? b.date_joined ?? "");
                 return (Number.isNaN(bDate) ? 0 : bDate) - (Number.isNaN(aDate) ? 0 : aDate);
             });
-    }, [approvedUsersQuery.data, currentUser, pendingUsersQuery.data, rejectedUsersQuery.data]);
+    }, [approvedUsersQuery.data, currentUser, pendingUsersQuery.data, rejectedUsersQuery.data, suspendedUsersQuery.data]);
 
     const usersByStatus = useMemo(
         () =>
@@ -374,6 +405,7 @@ export default function StoresPage() {
                     PENDING: [],
                     APPROVED: [],
                     REJECTED: [],
+                    SUSPENDED: [],
                 },
             ),
         [visibleUsers],
@@ -398,18 +430,32 @@ export default function StoresPage() {
 
     const currentRole = getNormalizedUserRole(currentUser);
 
-    const handleStatusChange = async (user: ManagedUser, status: UserStatus) => {
+    const handleStatusChange = async (user: ManagedUser, status: UserStatus, suspendReason?: string): Promise<boolean> => {
         try {
             await updateUserMutation.mutateAsync({
                 userId: user.id,
-                payload: { status },
+                payload: status === "SUSPENDED"
+                    ? { status, suspend_reason: suspendReason?.trim() || null }
+                    : { status },
             });
 
             await queryClient.invalidateQueries({ queryKey: ["api", "users"] });
-            toast.success(`وضعیت ${getDisplayName(user)} به ${status} تغییر کرد`);
+            const statusTitle = STATUS_CONFIGS.find((config) => config.status === status)?.title ?? status;
+            toast.success(`وضعیت ${getDisplayName(user)} به ${statusTitle} تغییر کرد`);
+            return true;
         } catch (error) {
             const message = error instanceof Error ? error.message : "تغییر وضعیت کاربر با خطا مواجه شد";
             toast.error(message);
+            return false;
+        }
+    };
+
+    const handleConfirmSuspend = async (reason: string) => {
+        if (!suspendTarget) return;
+
+        const succeeded = await handleStatusChange(suspendTarget, "SUSPENDED", reason);
+        if (succeeded) {
+            setSuspendTarget(null);
         }
     };
 
@@ -439,7 +485,7 @@ export default function StoresPage() {
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-3 gap-2 rounded-lg border border-white/10 bg-brand-base/45 p-2">
+                        <div className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-brand-base/45 p-2 sm:grid-cols-4">
                             {STATUS_CONFIGS.map((config) => (
                                 <div key={config.status} className="min-w-24 rounded-lg bg-white/[0.04] px-3 py-3 text-center">
                                     <p className="text-xl font-bold text-brand-text-primary">{usersByStatus[config.status].length}</p>
@@ -513,11 +559,12 @@ export default function StoresPage() {
                                 exit={{ opacity: 0, y: -8, filter: "blur(6px)" }}
                                 transition={{ duration: 0.22, ease: "easeOut" }}
                             >
-                                <UsersTable
-                                    users={paginatedUsers}
-                                    onStatusChange={handleStatusChange}
-                                    isMutating={updateUserMutation.isPending}
-                                />
+                        <UsersTable
+                            users={paginatedUsers}
+                            onStatusChange={handleStatusChange}
+                            onSuspendClick={setSuspendTarget}
+                            isMutating={updateUserMutation.isPending}
+                        />
                             </motion.div>
                         </AnimatePresence>
 
@@ -550,6 +597,14 @@ export default function StoresPage() {
                     </>
                 )}
             </div>
+
+            <SuspendUserDialog
+                isOpen={Boolean(suspendTarget)}
+                userName={suspendTarget ? getDisplayName(suspendTarget) : ""}
+                isSubmitting={updateUserMutation.isPending}
+                onClose={() => setSuspendTarget(null)}
+                onConfirm={handleConfirmSuspend}
+            />
         </div>
     );
 }

@@ -3,7 +3,7 @@ export const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 export type AuthUserRole = "MASTER" | "WHOLESALER" | "RETAIL" | string;
-export type AuthUserStatus = "PENDING" | "APPROVED" | "REJECTED" | string;
+export type AuthUserStatus = "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED" | string;
 
 export type AuthUserDetail = {
     id: string;
@@ -16,6 +16,8 @@ export type AuthUserDetail = {
     status: AuthUserStatus;
     parent?: string | null;
     is_employee?: boolean;
+    is_active?: boolean;
+    suspend_reason?: string | null;
     last_login?: string | null;
     date_joined?: string;
 };
