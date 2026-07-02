@@ -14,15 +14,15 @@ import {
     ShieldCheck,
     UserCheck,
     UserRound,
-    XCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
 import { SuspendUserDialog } from "@/components/users/SuspendUserDialog";
 import { useCurrentUserQuery, useUpdateUserMutation, useUsersQuery } from "@/hooks/api";
 import { toPersianDisplayDate } from "@/lib/date-format";
-import { canViewUserManagement, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
+import { canViewUserManagement, getNormalizedUserRole } from "@/lib/user-role";
 import { resolveMediaUrl } from "@/lib/media-url";
+import { ACCOUNT_STATUS_LABELS, getAccountStatusLabel, getAccountStatusView, getStoreRoleLabel } from "@/constants/user-taxonomy";
 import type { ManagedUser, UserStatus } from "@/types/api/user";
 
 type StatusConfig = {
@@ -41,7 +41,7 @@ const PAGE_SIZE = 20;
 const STATUS_CONFIGS: StatusConfig[] = [
     {
         status: "PENDING",
-        title: "در انتظار بررسی",
+        title: ACCOUNT_STATUS_LABELS.PENDING,
         caption: "ثبت‌نام‌های تازه",
         emptyText: "کاربری منتظر بررسی نیست.",
         icon: Clock3,
@@ -49,36 +49,21 @@ const STATUS_CONFIGS: StatusConfig[] = [
     },
     {
         status: "APPROVED",
-        title: "تایید شده",
+        title: ACCOUNT_STATUS_LABELS.APPROVED,
         caption: "دسترسی فعال",
-        emptyText: "کاربر تایید شده‌ای وجود ندارد.",
+        emptyText: "کاربر فعالی وجود ندارد.",
         icon: CheckCircle2,
         accent: "from-emerald-400/20 via-emerald-400/10 to-transparent text-emerald-200 border-emerald-300/20",
     },
     {
-        status: "REJECTED",
-        title: "رد شده",
-        caption: "نیازمند پیگیری",
-        emptyText: "کاربر رد شده‌ای وجود ندارد.",
-        icon: XCircle,
-        accent: "from-rose-400/20 via-rose-400/10 to-transparent text-rose-200 border-rose-300/20",
-    },
-    {
         status: "SUSPENDED",
-        title: "تعلیق شده",
+        title: ACCOUNT_STATUS_LABELS.SUSPENDED,
         caption: "دسترسی مسدود",
-        emptyText: "کاربر تعلیق‌شده‌ای وجود ندارد.",
+        emptyText: "کاربر مسدود شده‌ای وجود ندارد.",
         icon: Ban,
         accent: "from-slate-300/20 via-slate-400/10 to-transparent text-slate-100 border-slate-300/20",
     },
 ];
-
-const ROLE_LABELS: Record<NormalizedUserRole, string> = {
-    reference: "مرجع",
-    wholesale: "عمده‌فروش",
-    retail: "تک‌فروش",
-    unknown: "نامشخص",
-};
 
 const STATUS_FILTERS: Array<{ value: StatusFilter; label: string }> = [
     { value: "ALL", label: "همه" },
@@ -116,7 +101,7 @@ function DeniedState() {
                 </div>
                 <h1 className="mt-5 text-2xl font-bold text-brand-text-primary">این بخش برای نقش فعلی فعال نیست</h1>
                 <p className="mt-4 leading-8 text-brand-text-secondary">
-                    لیست کاربران برای مرجع و عمده‌فروش فعال است. تک‌فروش فقط به داشبورد و بخش‌های مجاز حساب خودش دسترسی دارد.
+                    لیست کاربران برای مرجع و عمده‌فروش فعال است. خرده‌فروش فقط به داشبورد و بخش‌های مجاز حساب خودش دسترسی دارد.
                 </p>
                 <div className="mt-8">
                     <Link href="/" className="inline-flex cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 px-6 py-3 font-medium text-brand-text-primary transition-all hover:bg-white/5">
@@ -178,11 +163,7 @@ function getStatusTone(status: UserStatus): string {
         return "border-emerald-300/25 bg-emerald-400/10 text-emerald-100";
     }
 
-    if (status === "REJECTED") {
-        return "border-rose-300/25 bg-rose-400/10 text-rose-100";
-    }
-
-    if (status === "SUSPENDED") {
+    if (getAccountStatusView(status) === "SUSPENDED") {
         return "border-slate-300/25 bg-slate-400/10 text-slate-100";
     }
 
@@ -245,7 +226,6 @@ function UsersTable({
                                 const personName = getPersonName(user);
                                 const logoUrl = resolveMediaUrl(user.business_logo);
                                 const canApprove = user.status !== "APPROVED";
-                                const canReject = user.status !== "REJECTED";
                                 const canSuspend = user.status !== "SUSPENDED";
 
                                 return (
@@ -275,7 +255,7 @@ function UsersTable({
                                         <td className="border-b border-white/5 px-4 py-3 text-center">
                                             <div className="flex flex-wrap justify-center gap-1.5">
                                                 <span className="inline-flex items-center gap-1 rounded-lg border border-silver-dark/25 bg-white/5 px-2 py-1 text-xs text-brand-text-secondary">
-                                                    {ROLE_LABELS[role]}
+                                                    {getStoreRoleLabel(role)}
                                                 </span>
                                                 {user.is_employee ? (
                                                     <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-2 py-1 text-xs font-bold text-emerald-100">
@@ -287,7 +267,7 @@ function UsersTable({
                                         </td>
                                         <td className="border-b border-white/5 px-4 py-3 text-center">
                                             <span className={`inline-flex rounded-lg border px-2.5 py-1 text-xs font-bold ${getStatusTone(user.status)}`}>
-                                                {STATUS_CONFIGS.find((config) => config.status === user.status)?.title ?? user.status}
+                                                {getAccountStatusLabel(user.status)}
                                             </span>
                                         </td>
                                         <td className="border-b border-white/5 px-4 py-3 text-center">
@@ -319,24 +299,13 @@ function UsersTable({
                                                         <CheckCircle2 className="h-4 w-4" />
                                                     </button>
                                                 ) : null}
-                                                {canReject ? (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onStatusChange(user, "REJECTED")}
-                                                        disabled={isMutating}
-                                                        className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-rose-300/25 bg-rose-400/10 text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                                        title="رد"
-                                                    >
-                                                        <XCircle className="h-4 w-4" />
-                                                    </button>
-                                                ) : null}
                                                 {canSuspend ? (
                                                     <button
                                                         type="button"
                                                         onClick={() => onSuspendClick(user)}
                                                         disabled={isMutating}
                                                         className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-slate-300/25 bg-slate-400/10 text-slate-100 transition hover:bg-slate-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                                                        title="تعلیق"
+                                                        title="مسدود کردن"
                                                     >
                                                         <Ban className="h-4 w-4" />
                                                     </button>
@@ -398,7 +367,7 @@ export default function StoresPage() {
         () =>
             STATUS_CONFIGS.reduce<Record<UserStatus, ManagedUser[]>>(
                 (acc, config) => {
-                    acc[config.status] = visibleUsers.filter((user) => user.status === config.status);
+                    acc[config.status] = visibleUsers.filter((user) => getAccountStatusView(user.status) === config.status);
                     return acc;
                 },
                 {
@@ -415,7 +384,7 @@ export default function StoresPage() {
         const normalizedSearch = searchTerm.trim().toLowerCase();
 
         return visibleUsers.filter((user) => {
-            const matchesStatus = statusFilter === "ALL" || user.status === statusFilter;
+            const matchesStatus = statusFilter === "ALL" || getAccountStatusView(user.status) === statusFilter;
             const matchesSearch = !normalizedSearch || getSearchText(user).includes(normalizedSearch);
 
             return matchesStatus && matchesSearch;
@@ -440,7 +409,7 @@ export default function StoresPage() {
             });
 
             await queryClient.invalidateQueries({ queryKey: ["api", "users"] });
-            const statusTitle = STATUS_CONFIGS.find((config) => config.status === status)?.title ?? status;
+            const statusTitle = getAccountStatusLabel(status);
             toast.success(`وضعیت ${getDisplayName(user)} به ${statusTitle} تغییر کرد`);
             return true;
         } catch (error) {
@@ -480,12 +449,12 @@ export default function StoresPage() {
                             <h1 className="mt-4 text-2xl font-bold text-brand-text-primary sm:text-3xl">مدیریت کاربران</h1>
                             <p className="mt-3 max-w-3xl leading-8 text-brand-text-secondary">
                                 {currentRole === "reference"
-                                    ? "زیرمجموعه‌های مستقیم و تک‌فروش‌های وابسته به عمده‌فروش‌ها از همین بخش قابل بررسی، تایید و ویرایش هستند."
-                                    : "در این بخش فقط تک‌فروش‌های زیرمجموعه شما نمایش داده می‌شوند."}
+                                    ? "زیرمجموعه‌های مستقیم و خرده‌فروش‌های وابسته به عمده‌فروش‌ها از همین بخش قابل بررسی، تایید و ویرایش هستند."
+                                    : "در این بخش فقط خرده‌فروش‌های زیرمجموعه شما نمایش داده می‌شوند."}
                             </p>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-brand-base/45 p-2 sm:grid-cols-4">
+                        <div className="grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-brand-base/45 p-2 sm:grid-cols-3">
                             {STATUS_CONFIGS.map((config) => (
                                 <div key={config.status} className="min-w-24 rounded-lg bg-white/[0.04] px-3 py-3 text-center">
                                     <p className="text-xl font-bold text-brand-text-primary">{usersByStatus[config.status].length}</p>

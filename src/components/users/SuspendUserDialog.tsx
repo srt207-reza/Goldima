@@ -86,15 +86,15 @@ function SuspendUserDialogPanel({
                     </div>
 
                     <h2 id="suspend-user-title" className="text-2xl font-black text-brand-text-primary">
-                        تعلیق حساب کاربری
+                        مسدود کردن حساب کاربری
                     </h2>
                     <p className="mt-3 text-sm leading-7 text-brand-text-secondary">
-                        دلیل تعلیق حساب {userName} را بنویسید. این متن برای کاربر در صفحه تعلیق نمایش داده می‌شود.
+                        دلیل مسدود کردن حساب {userName} را بنویسید. این متن برای کاربر در صفحه مسدودی نمایش داده می‌شود.
                     </p>
 
                     <div className="mt-5">
                         <label htmlFor="suspend-reason" className="mb-2 block text-sm font-bold text-brand-text-primary">
-                            دلیل تعلیق
+                            دلیل مسدود شدن
                         </label>
                         <textarea
                             id="suspend-reason"
@@ -106,7 +106,7 @@ function SuspendUserDialogPanel({
                             className="w-full resize-none rounded-2xl border border-silver-dark/20 bg-brand-base/55 px-4 py-3 text-sm leading-7 text-brand-text-primary outline-none transition placeholder:text-brand-text-secondary/70 focus:border-rose-200/40 focus:bg-brand-base/75"
                         />
                         <div className="mt-2 flex items-center justify-between text-xs text-brand-text-secondary">
-                            <span>ثبت دلیل برای تعلیق الزامی است.</span>
+                            <span>ثبت دلیل برای مسدود کردن حساب الزامی است.</span>
                             <span dir="ltr">{normalizedReason.length}/500</span>
                         </div>
                     </div>
@@ -127,7 +127,7 @@ function SuspendUserDialogPanel({
                             className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-300/25 bg-rose-400/10 px-5 text-sm font-bold text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <Ban className="h-4 w-4" />
-                            {isSubmitting ? "در حال تعلیق..." : "تعلیق حساب"}
+                            {isSubmitting ? "در حال مسدود کردن..." : "مسدود کردن حساب"}
                         </button>
                     </div>
                 </div>

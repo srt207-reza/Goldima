@@ -1,9 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import Image from "next/image";
+import { useEffect, useMemo, useState } from "react";
 import { motion, type Variants } from "framer-motion";
-import { ArrowDown, ArrowUp, Banknote, Gem, RefreshCw } from "lucide-react";
-import { useProductsQuery } from "@/hooks/api";
+import { ArrowDown, ArrowUp, Banknote, Clock3, Gem, RefreshCw, Wifi, WifiOff } from "lucide-react";
+import { useCurrentUserQuery, useProductsQuery } from "@/hooks/api";
 import {
     findTradingMarket,
     findTradingProduct,
@@ -11,7 +12,9 @@ import {
     type TradingMarketDefinition,
     type TradingProductDefinition,
 } from "@/constants/trading-board";
+import { getBusinessLabel } from "@/lib/user-role";
 import type { ProductPriceSection, ProductPriceTreeDetail } from "@/types/api/product";
+import LOGO from "@/../public/assets/images/logo.png";
 
 const REFRESH_INTERVAL_MS = 10_000;
 
@@ -49,11 +52,225 @@ function formatMoney(value: unknown): string {
     }).format(toFiniteNumber(value));
 }
 
+function resolveMediaUrl(src?: string | null): string {
+    if (!src) return "";
+    if (/^(blob:|data:|https?:\/\/)/i.test(src)) return src;
+
+    const apiOrigin = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
+    if (src.startsWith("/")) return apiOrigin ? `${apiOrigin}${src}` : src;
+
+    return src;
+}
+
+function formatDashboardTime(value: Date | string | null | undefined): string {
+    if (!value) return "--:--";
+
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return "--:--";
+
+    return new Intl.DateTimeFormat("fa-IR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: "Asia/Tehran",
+    }).format(date);
+}
+
+function getLatestUpdateTime(products: ProductPriceTreeDetail[]): string | null {
+    let latest = 0;
+
+    products.forEach((product) => {
+        const productUpdatedAt = typeof product.updated_at === "string" ? Date.parse(product.updated_at) : 0;
+        if (Number.isFinite(productUpdatedAt) && productUpdatedAt > latest) latest = productUpdatedAt;
+
+        (product.prices ?? []).forEach((section) => {
+            const updatedAt = typeof section.updated_at === "string" ? Date.parse(section.updated_at) : 0;
+            const createdAt = typeof section.created_at === "string" ? Date.parse(section.created_at) : 0;
+            const sectionTime = Math.max(updatedAt || 0, createdAt || 0);
+            if (Number.isFinite(sectionTime) && sectionTime > latest) latest = sectionTime;
+        });
+    });
+
+    return latest > 0 ? new Date(latest).toISOString() : null;
+}
+
 function getUnitLabel(product: ProductPriceTreeDetail | undefined, definition: TradingProductDefinition): string {
     if (definition.unitLabel) return definition.unitLabel;
 
     const weight = product?.weight ? `${formatMoney(product.weight)} ${product.unit || ""}`.trim() : "";
     return weight || "قیمت لحظه‌ای";
+}
+
+function useCurrentClock() {
+    const [now, setNow] = useState(() => new Date());
+
+    useEffect(() => {
+        const interval = window.setInterval(() => setNow(new Date()), 1000);
+        return () => window.clearInterval(interval);
+    }, []);
+
+    return now;
+}
+
+function useOnlineStatus() {
+    const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+
+    useEffect(() => {
+        const handleOnline = () => setIsOnline(true);
+        const handleOffline = () => setIsOnline(false);
+
+        window.addEventListener("online", handleOnline);
+        window.addEventListener("offline", handleOffline);
+
+        return () => {
+            window.removeEventListener("online", handleOnline);
+            window.removeEventListener("offline", handleOffline);
+        };
+    }, []);
+
+    return isOnline;
+}
+
+function AnalogClock({ now }: { now: Date }) {
+    const seconds = now.getSeconds();
+    const minutes = now.getMinutes();
+    const hours = now.getHours() % 12;
+    const secondAngle = seconds * 6;
+    const minuteAngle = minutes * 6 + seconds * 0.1;
+    const hourAngle = hours * 30 + minutes * 0.5;
+
+    return (
+        <div className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full border border-silver-light/20 bg-brand-base/55 shadow-[inset_0_0_24px_rgba(255,255,255,0.035),0_0_22px_rgba(148,163,184,0.08)]">
+            {[0, 1, 2, 3].map((tick) => (
+                <span
+                    key={tick}
+                    className="absolute h-[78%] w-px rounded-full bg-silver-light/20"
+                    style={{ transform: `rotate(${tick * 45}deg)` }}
+                />
+            ))}
+            <span
+                className="absolute bottom-1/2 left-1/2 h-[25%] w-1 origin-bottom rounded-full bg-silver-light"
+                style={{ transform: `translateX(-50%) rotate(${hourAngle}deg)` }}
+            />
+            <span
+                className="absolute bottom-1/2 left-1/2 h-[34%] w-0.5 origin-bottom rounded-full bg-white"
+                style={{ transform: `translateX(-50%) rotate(${minuteAngle}deg)` }}
+            />
+            <span
+                className="absolute bottom-1/2 left-1/2 h-[38%] w-px origin-bottom rounded-full bg-emerald-300"
+                style={{ transform: `translateX(-50%) rotate(${secondAngle}deg)` }}
+            />
+            <span className="absolute h-2.5 w-2.5 rounded-full border border-brand-base bg-emerald-200 shadow-[0_0_14px_rgba(110,231,183,0.75)]" />
+        </div>
+    );
+}
+
+function DashboardLogo({
+    logo,
+    businessName,
+}: {
+    logo?: string | null;
+    businessName: string;
+}) {
+    const logoUrl = resolveMediaUrl(logo);
+
+    return (
+        <div className="flex min-w-0 items-center gap-3">
+            <div className={`relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl ${logoUrl ? "border border-silver-dark/20 bg-brand-base/45" : ""}`}>
+                {logoUrl ? (
+                    <span
+                        role="img"
+                        aria-label={businessName}
+                        className="block h-full w-full bg-cover bg-center"
+                        style={{ backgroundImage: `url("${logoUrl.replace(/"/g, "%22")}")` }}
+                    />
+                ) : (
+                    <Image src={LOGO} alt="GOLDIMA Logo" fill className="object-contain" priority />
+                )}
+            </div>
+            <div className="min-w-0 text-right">
+                <p className="text-xs font-semibold text-brand-text-secondary">تابلوی اعلام قیمت</p>
+                <h1 className="truncate text-lg font-black text-brand-text-primary sm:text-2xl">{businessName}</h1>
+            </div>
+        </div>
+    );
+}
+
+function StatusPill({
+    label,
+    value,
+    icon: Icon,
+    tone = "neutral",
+}: {
+    label: string;
+    value: string;
+    icon: typeof Clock3;
+    tone?: "neutral" | "success" | "warning" | "danger";
+}) {
+    const toneClass = {
+        neutral: "border-silver-dark/20 bg-brand-base/45 text-brand-text-primary",
+        success: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
+        warning: "border-amber-300/20 bg-amber-400/10 text-amber-100",
+        danger: "border-rose-300/25 bg-rose-400/10 text-rose-100",
+    }[tone];
+
+    return (
+        <div className={`flex min-w-0 items-center gap-3 rounded-2xl border px-4 py-3 shadow-inner shadow-black/10 ${toneClass}`}>
+            <Icon className="h-5 w-5 shrink-0" />
+            <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-brand-text-secondary">{label}</p>
+                <p className="mt-1 truncate text-sm font-black tabular-nums">{value}</p>
+            </div>
+        </div>
+    );
+}
+
+function DashboardTopBar({
+    businessName,
+    businessLogo,
+    lastUpdatedAt,
+    now,
+    isFetching,
+    isError,
+    isOnline,
+}: {
+    businessName: string;
+    businessLogo?: string | null;
+    lastUpdatedAt: string | null;
+    now: Date;
+    isFetching: boolean;
+    isError: boolean;
+    isOnline: boolean;
+}) {
+    const connectionTone = !isOnline || isError ? "danger" : isFetching ? "warning" : "success";
+    const connectionText = !isOnline || isError ? "عدم ارتباط با سرور" : isFetching ? "در حال دریافت قیمت" : "متصل و به‌روز";
+    const ConnectionIcon = !isOnline || isError ? WifiOff : isFetching ? RefreshCw : Wifi;
+
+    return (
+        <motion.section
+            initial={{ opacity: 0, y: -14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.45, ease: "easeOut" }}
+            className="dashboard-topbar sticky top-5 z-20 mb-8 h-fit! rounded-3xl border border-silver-dark/15 bg-brand-card/80 p-5 shadow-deep-card backdrop-blur-xl"
+        >
+            <div className="dashboard-topbar-grid grid items-center gap-5 xl:grid-cols-[minmax(16rem,1fr)_auto_minmax(22rem,1.2fr)]">
+                <DashboardLogo logo={businessLogo} businessName={businessName} />
+
+                <div className="dashboard-clock-card flex items-center justify-center gap-4 rounded-3xl border border-silver-dark/15 bg-brand-base/40 px-5 py-3 shadow-inner shadow-black/15">
+                    <AnalogClock now={now} />
+                    <div className="text-right">
+                        <p className="text-[11px] font-semibold text-brand-text-secondary">ساعت فعلی</p>
+                        <p className="mt-1 text-xl font-black tabular-nums text-brand-text-primary">{formatDashboardTime(now)}</p>
+                    </div>
+                </div>
+
+                <div className="dashboard-status-grid grid gap-3 sm:grid-cols-2">
+                    <StatusPill label="آخرین به‌روزرسانی مرجع" value={formatDashboardTime(lastUpdatedAt)} icon={Clock3} />
+                    <StatusPill label="وضعیت ارتباط" value={connectionText} icon={ConnectionIcon} tone={connectionTone} />
+                </div>
+            </div>
+        </motion.section>
+    );
 }
 
 function buildBoardItems(products: ProductPriceTreeDetail[]): BoardItem[] {
@@ -186,7 +403,7 @@ function ProductCard({
             animate="visible"
             whileHover={{ y: -4, transition: { duration: 0.22 } }}
             className={[
-                "goldima-panel-sweep group relative overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-card/78 text-right shadow-deep-card backdrop-blur-xl",
+                "group relative overflow-hidden rounded-2xl border border-silver-dark/20 bg-brand-card/90 text-right shadow-deep-card",
                 "transition-colors duration-300 hover:border-silver-light/35",
                 variant === "wide" ? "min-h-[9.2rem] p-5 lg:p-6" : "min-h-[15rem] p-5",
             ].join(" ")}
@@ -252,10 +469,12 @@ function LoadingState() {
 }
 
 export default function HomePage() {
+    const { data: currentUser } = useCurrentUserQuery();
     const {
         data: apiProducts = [],
         isError,
         isLoading,
+        isFetching,
         refetch,
     } = useProductsQuery({
         refetchInterval: REFRESH_INTERVAL_MS,
@@ -264,7 +483,12 @@ export default function HomePage() {
         staleTime: 0,
     });
 
+    const now = useCurrentClock();
+    const isOnline = useOnlineStatus();
+    const businessName = getBusinessLabel(currentUser);
+    const businessLogo = currentUser?.business_logo ?? null;
     const boardItems = useMemo(() => buildBoardItems(apiProducts), [apiProducts]);
+    const lastUpdatedAt = useMemo(() => getLatestUpdateTime(apiProducts), [apiProducts]);
     const getItem = (key: string) => boardItems.find((item) => item.definition.key === key);
     const turkeySilver = getItem("turkey_silver");
     const uaeSilver = getItem("uae_silver");
@@ -273,14 +497,25 @@ export default function HomePage() {
     const aedTransfer = getItem("aed_transfer");
 
     return (
-        <main className="relative min-h-[calc(100vh-5rem)] overflow-hidden px-4 py-5 sm:px-6 lg:px-8">
+        <main className="dashboard-page relative min-h-full overflow-hidden px-4 py-3 sm:px-6 lg:px-8">
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(226,232,240,0.06),transparent_28%,rgba(16,185,129,0.055)_62%,transparent)]" />
             <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(226,232,240,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(226,232,240,0.025)_1px,transparent_1px)] bg-[size:56px_56px] opacity-45" />
 
-            <div className="relative z-10 mx-auto w-full max-w-7xl">
-                {isLoading ? (
-                    <LoadingState />
-                ) : isError ? (
+            <div className="dashboard-board-shell relative z-10 mx-auto flex min-h-full w-full max-w-7xl flex-col">
+                <DashboardTopBar
+                    businessName={businessName}
+                    businessLogo={businessLogo}
+                    lastUpdatedAt={lastUpdatedAt}
+                    now={now}
+                    isFetching={isFetching}
+                    isError={isError}
+                    isOnline={isOnline}
+                />
+
+                <div className="dashboard-price-content">
+                    {isLoading ? (
+                        <LoadingState />
+                    ) : isError ? (
                     <div className="grid min-h-[28rem] place-items-center rounded-2xl border border-rose-300/20 bg-brand-card/80 p-8 text-center shadow-deep-card backdrop-blur-xl">
                         <div>
                             <RefreshCw className="mx-auto h-10 w-10 text-rose-200" />
@@ -297,21 +532,21 @@ export default function HomePage() {
                             </button>
                         </div>
                     </div>
-                ) : boardItems.length ? (
-                    <div className="grid content-start gap-5">
-                        <div className="grid gap-5 xl:grid-cols-2">
+                    ) : boardItems.length ? (
+                    <div className="grid content-start gap-6 pt-2">
+                        <div className="grid gap-6 xl:grid-cols-2">
                             {uaeSilver ? <ProductCard item={uaeSilver} index={0} /> : null}
                             {turkeySilver ? <ProductCard item={turkeySilver} index={1} /> : null}
                         </div>
 
                         {usdCash ? <ProductCard item={usdCash} variant="wide" index={2} /> : null}
 
-                        <div className="grid gap-5 xl:grid-cols-2">
+                        <div className="grid gap-6 xl:grid-cols-2">
                             {aedTransfer ? <ProductCard item={aedTransfer} variant="compact" index={3} /> : null}
                             {tryTransfer ? <ProductCard item={tryTransfer} variant="compact" index={4} /> : null}
                         </div>
                     </div>
-                ) : (
+                    ) : (
                     <div className="grid min-h-[28rem] place-items-center rounded-2xl border border-dashed border-silver-dark/30 bg-brand-card/70 p-8 text-center shadow-deep-card backdrop-blur-xl">
                         <div>
                             <p className="text-2xl font-black text-brand-text-primary">قیمت فعالی برای نمایش وجود ندارد</p>
@@ -320,7 +555,8 @@ export default function HomePage() {
                             </p>
                         </div>
                     </div>
-                )}
+                    )}
+                </div>
             </div>
         </main>
     );

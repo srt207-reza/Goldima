@@ -10,6 +10,7 @@ import { ShineBorder } from "@/components/ui/shine-border";
 import { useCurrentUserQuery, useLogoutMutation, useParentBusinessProfileQuery } from "@/hooks/api";
 import { clearAuthTokens, getAccessToken, getRefreshToken } from "@/lib/auth-storage";
 import { DEFAULT_PARENT_BUSINESS_HANDLER, getReadableBusinessHandler, normalizeBusinessPathSegment } from "@/lib/business-path";
+import { getAccountStatusLabel } from "@/constants/user-taxonomy";
 
 const FloatingParticles = () => (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -141,20 +142,18 @@ function PendingContent() {
             <div className="relative mb-8">
 
                 <div className="inline-flex items-center rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-amber-200 text-sm font-medium mb-5">
-                    {userStatus === "SUSPENDED" ? "تعلیق شده" : userStatus === "REJECTED" ? "رد شده" : isFetching ? "در حال بررسی وضعیت..." : "در انتظار تایید مرجع"}
+                    {isFetching ? "در حال بررسی وضعیت..." : getAccountStatusLabel(userStatus)}
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl font-bold mb-3 tracking-wider">
                     <span className="bg-gradient-to-l from-silver-light via-silver-metallic to-silver-light bg-clip-text text-transparent animate-pulse">
-                        {userStatus === "SUSPENDED" ? "دسترسی حساب شما تعلیق شده است" : userStatus === "REJECTED" ? "درخواست شما رد شده است" : "ثبت‌نام با موفقیت انجام شد!"}
+                        {userStatus === "SUSPENDED" || userStatus === "REJECTED" ? "حساب شما مسدود شده است" : "ثبت‌نام با موفقیت انجام شد!"}
                     </span>
                 </h1>
 
                 <p className="text-brand-text-secondary text-justify leading-8">
-                    {userStatus === "SUSPENDED"
+                    {userStatus === "SUSPENDED" || userStatus === "REJECTED"
                         ? getSuspendedAccessMessage(suspendedBusinessName, suspendedReason)
-                        : userStatus === "REJECTED"
-                        ? "برای فعال‌سازی حساب، با مرجع یا پشتیبانی سیستم هماهنگ کنید."
                         : `
                             پس از بررسی و تأیید مشخصات ثبت‌شده توسط بخش پشتیبانی، حساب کاربری فعال خواهد شد. در صورت وجود هرگونه نقص یا مغایرت در مشخصات ارسالی، جهت تکمیل مشخصات با شما تماس گرفته خواهد ‌شد.
 لطفاً در نظر داشته باشید که فرآیند بررسی و تأیید اطلاعات در روزهای کاری، حداکثر تا ۲۴ ساعت زمان‌بر می‌باشد.

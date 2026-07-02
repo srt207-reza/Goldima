@@ -15,6 +15,7 @@ import {
     PanelLeftOpen,
     Share2,
     Store,
+    Building2,
     UserCheck,
     Tags,
     UserCircle2,
@@ -26,9 +27,10 @@ import { useCurrentUserQuery, useLogoutMutation } from "@/hooks/api";
 import { clearAuthTokens, getAccessToken, getRefreshToken } from "@/lib/auth-storage";
 import { getSuspendedUrl } from "@/lib/auth-routing";
 import { canViewPricingTools, canViewUserManagement, getBusinessLabel, getNormalizedUserRole } from "@/lib/user-role";
+import { getStoreRoleLabel } from "@/constants/user-taxonomy";
 import { normalizeBusinessPathSegment } from "@/lib/business-path";
 import { AmbientBackground } from "@/components/ui/ambient-background";
-import { FullPageLoader } from "@/components/ui/Loader";
+import { AppShellSkeleton } from "@/components/ui/page-skeletons";
 import LOGO from "@/../public/assets/images/logo.png";
 
 type NavItem = {
@@ -42,7 +44,7 @@ function getErrorStatus(error: unknown): number | undefined {
     return maybeError?.response?.status;
 }
 
-const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "share-link", "stores", "pricing"]);
+const APP_SINGLE_SEGMENT_ROUTES = new Set(["profile", "share-link", "stores", "pricing", "parent-store"]);
 
 function isAuthRoute(pathname: string): boolean {
     return ["/login", "/register", "/otp", "/pending", "/suspended"].some((route) => pathname === route || pathname.startsWith(`${route}/`));
@@ -60,13 +62,6 @@ function isShellHidden(pathname: string): boolean {
 function isActivePath(pathname: string, href: string): boolean {
     if (href === "/") return pathname === "/";
     return pathname === href || pathname.startsWith(`${href}/`);
-}
-
-function getRoleLabel(role: ReturnType<typeof getNormalizedUserRole>): string {
-    if (role === "reference") return "مرجع";
-    if (role === "wholesale") return "عمده‌فروش";
-    if (role === "retail") return "تک‌فروش";
-    return "حساب کاربری";
 }
 
 function resolveMediaUrl(src?: string | null): string {
@@ -107,7 +102,7 @@ function BusinessLogoMark({
 }
 
 function LoadingGate() {
-    return <FullPageLoader />;
+    return <AppShellSkeleton />;
 }
 
 function NavLink({
@@ -156,7 +151,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const currentPathname = pathname ?? "/";
     const hideShell = isShellHidden(currentPathname);
     const role = useMemo(() => getNormalizedUserRole(currentUser), [currentUser]);
-    const roleLabel = useMemo(() => getRoleLabel(role), [role]);
+    const roleLabel = useMemo(() => getStoreRoleLabel(role), [role]);
     const businessLabel = useMemo(() => getBusinessLabel(currentUser), [currentUser]);
     const isEmployee = currentUser?.is_employee === true;
     const businessLogo = currentUser?.business_logo ?? null;
@@ -167,19 +162,18 @@ export default function AppShell({ children }: { children: ReactNode }) {
     const isCurrentUserActive = currentUser?.is_active !== false && currentUser?.business_profile_is_active !== false;
     const isAllowedDashboardUser = Boolean(currentUser && isCurrentUserApproved && isCurrentUserActive);
 
+    const hasParentStore = Boolean(currentUser?.parent);
+    const isDashboardPage = currentPathname === "/";
+    const isDashboardFullscreen = dashboardFullscreen && isDashboardPage;
+
     const navItems: NavItem[] = [
-        { href: "/", label: "داشبورد", icon: LayoutDashboard },
-        { href: "/profile", label: "پروفایل", icon: UserCircle2 },
-        { href: "/share-link", label: "اشتراک‌گذاری لینک", icon: Share2 },
+        { href: "/", label: "داشبورد اعلام قیمت", icon: LayoutDashboard },
+        ...(showPricingTools ? [{ href: "/pricing", label: "قیمت‌گذاری", icon: Tags }] : []),
+        ...(showUserManagementTools ? [{ href: "/stores", label: "فروشگاه‌ها", icon: Store }] : []),
+        { href: "/profile", label: "ویرایش پروفایل", icon: UserCircle2 },
+        { href: "/share-link", label: "اشتراک‌گذاری فروشگاه", icon: Share2 },
+        ...(hasParentStore ? [{ href: "/parent-store", label: "ارتباط با فروشگاه والد", icon: Building2 }] : []),
     ];
-
-    if (showUserManagementTools) {
-        navItems.push({ href: "/stores", label: "لیست کاربران", icon: Store });
-    }
-
-    if (showPricingTools) {
-        navItems.push({ href: "/pricing", label: "قیمت‌گذاری‌ها", icon: Tags });
-    }
 
     useEffect(() => {
         if (hideShell || isLoadingCurrentUser) return;
@@ -232,7 +226,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
     }, [currentUser, currentUserError, hideShell, isAllowedDashboardUser, isCurrentUserActive, isCurrentUserError, isLoadingCurrentUser, router]);
 
     useEffect(() => {
-        if (!dashboardFullscreen) return;
+        if (!isDashboardFullscreen) return;
 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.key === "Escape") {
@@ -242,7 +236,7 @@ export default function AppShell({ children }: { children: ReactNode }) {
 
         window.addEventListener("keydown", handleKeyDown);
         return () => window.removeEventListener("keydown", handleKeyDown);
-    }, [dashboardFullscreen]);
+    }, [isDashboardFullscreen]);
 
     const handleLogout = async () => {
         const refresh = getRefreshToken();
@@ -284,14 +278,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
         <div
             className={[
                 "relative overflow-hidden bg-brand-base text-brand-text-primary shadow-[0_25px_90px_rgba(2,6,23,0.28)] transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]",
-                dashboardFullscreen ? "h-dvh min-h-dvh border-transparent" : "min-h-screen border border-white/5",
+                isDashboardFullscreen ? "h-dvh min-h-dvh border-transparent" : "min-h-screen border border-white/5",
             ].join(" ")}
         >
             <AmbientBackground className="opacity-70" dense />
             <div
                 className={[
                     "fixed inset-0 z-40 bg-black/55 backdrop-blur-sm transition-opacity duration-500 ease-out lg:hidden",
-                    dashboardFullscreen || !mobileMenuOpen ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100",
+                    isDashboardFullscreen || !mobileMenuOpen ? "pointer-events-none opacity-0" : "pointer-events-auto opacity-100",
                 ].join(" ")}
                 onClick={() => setMobileMenuOpen(false)}
             />
@@ -299,11 +293,11 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <aside
                 className={[
                     "fixed right-0 top-0 z-50 h-dvh w-72 transform-gpu border-l border-white/5 bg-brand-surface/95 shadow-2xl shadow-black/25 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
-                    dashboardFullscreen ? "pointer-events-none translate-x-full opacity-0 blur-sm" : "",
+                    isDashboardFullscreen ? "pointer-events-none translate-x-full opacity-0 blur-sm" : "",
                     sidebarWidth,
                     mobileMenuOpen ? "translate-x-0" : "translate-x-full lg:translate-x-0",
                 ].join(" ")}
-                aria-hidden={dashboardFullscreen}
+                aria-hidden={isDashboardFullscreen}
             >
                 <div className="flex h-full flex-col">
                     <div className="flex h-20 items-center justify-between border-b border-white/5 px-4">
@@ -361,7 +355,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
                                     {...item}
                                     pathname={currentPathname}
                                     collapsed={sidebarCollapsed}
-                                    onClick={() => setMobileMenuOpen(false)}
+                                    onClick={() => {
+                                        setMobileMenuOpen(false);
+                                        setDashboardFullscreen(false);
+                                    }}
                                 />
                             ))}
 
@@ -409,14 +406,14 @@ export default function AppShell({ children }: { children: ReactNode }) {
                             type="button"
                             onClick={handleLogout}
                             disabled={logoutMutation.isPending}
-                            title={sidebarCollapsed ? "خروج از حساب" : undefined}
+                            title={sidebarCollapsed ? "خروج از حساب کاربری" : undefined}
                             className={[
                                 "flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-red-400/10 bg-red-500/5 py-3 text-sm font-medium text-red-100 transition-all hover:border-red-300/25 hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-60",
                                 sidebarCollapsed ? "justify-center px-3" : "px-4",
                             ].join(" ")}
                         >
                             <LogOut className="h-4 w-4 shrink-0 text-red-200" />
-                            {!sidebarCollapsed && <span>{logoutMutation.isPending ? "در حال خروج..." : "خروج از حساب"}</span>}
+                            {!sidebarCollapsed && <span>{logoutMutation.isPending ? "در حال خروج..." : "خروج از حساب کاربری"}</span>}
                         </button>
 
                         <div className={sidebarCollapsed ? "flex justify-center" : "flex items-center justify-between gap-3"}>
@@ -442,10 +439,10 @@ export default function AppShell({ children }: { children: ReactNode }) {
             <header
                 className={[
                     "fixed top-0 left-0 right-0 z-40 h-20 transform-gpu border-b border-white/5 bg-brand-surface/85 backdrop-blur-xl transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform",
-                    dashboardFullscreen ? "pointer-events-none -translate-y-full opacity-0 blur-sm" : "translate-y-0 opacity-100 blur-0",
+                    isDashboardFullscreen ? "pointer-events-none -translate-y-full opacity-0 blur-sm" : "translate-y-0 opacity-100 blur-0",
                     headerOffset,
                 ].join(" ")}
-                aria-hidden={dashboardFullscreen}
+                aria-hidden={isDashboardFullscreen}
             >
                 <div className="flex h-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
                     <div className="flex min-w-0 items-center gap-3">
@@ -468,34 +465,34 @@ export default function AppShell({ children }: { children: ReactNode }) {
                         </div> */}
                     </div>
 
-                    <button
-                        type="button"
-                        onClick={handleEnterFullscreen}
-                        className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl border border-silver-dark/20 bg-brand-base/50 text-sm font-semibold text-brand-text-primary transition-all hover:border-silver-light/30 hover:bg-white/5 sm:w-auto sm:px-4"
-                        aria-label="نمایش داشبورد به صورت تمام‌صفحه"
-                        title="تمام‌صفحه"
-                    >
-                        <Maximize2 className="h-4 w-4 text-silver-light" />
-                        <span className="hidden sm:inline">تمام‌صفحه</span>
-                    </button>
+                    {isDashboardPage ? (
+                        <button
+                            type="button"
+                            onClick={handleEnterFullscreen}
+                            className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 bg-brand-base/50 text-brand-text-primary transition-all hover:border-silver-light/30 hover:bg-white/5"
+                            aria-label="نمایش داشبورد به صورت تمام‌صفحه"
+                            title="نمایش داشبورد به صورت تمام‌صفحه"
+                        >
+                            <Maximize2 className="h-4 w-4 text-silver-light" />
+                        </button>
+                    ) : null}
                 </div>
             </header>
 
-            {dashboardFullscreen && (
+            {isDashboardFullscreen && (
                 <button
                     type="button"
                     onClick={() => setDashboardFullscreen(false)}
-                    className="fixed left-4 top-4 z-50 inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-silver-dark/20 bg-brand-surface/90 px-4 text-sm font-semibold text-brand-text-primary shadow-2xl shadow-black/25 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-300 hover:border-silver-light/30 hover:bg-brand-card/90"
+                    className="fixed left-4 top-4 z-50 inline-flex h-11 w-11 cursor-pointer items-center justify-center rounded-xl border border-silver-dark/20 bg-brand-surface/90 text-brand-text-primary shadow-2xl shadow-black/25 backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-300 hover:border-silver-light/30 hover:bg-brand-card/90"
                     aria-label="خروج از حالت تمام‌صفحه"
-                    title="خروج از تمام‌صفحه"
+                    title="خروج از حالت تمام‌صفحه"
                 >
                     <Minimize2 className="h-4 w-4 text-silver-light" />
-                    <span className="hidden sm:inline">خروج از تمام‌صفحه</span>
                 </button>
             )}
 
-            <main className={dashboardFullscreen ? "relative z-10 h-dvh min-h-dvh overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]" : ["relative z-10 pt-20 transition-[padding-right] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]", mainOffset].join(" ")}>
-                <div className={dashboardFullscreen ? "h-dvh min-h-dvh w-full overflow-hidden bg-brand-surface/25 p-0 backdrop-blur-[1px] [&>main]:h-dvh [&>main]:min-h-dvh" : "min-h-[calc(100dvh-5rem)] w-full bg-brand-surface/25 p-0 backdrop-blur-[1px] [&>main]:min-h-[calc(100dvh-5rem)]"}>
+            <main className={isDashboardFullscreen ? "relative z-10 h-dvh min-h-dvh overflow-hidden transition-all duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]" : ["relative z-10 pt-20 transition-[padding-right] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]", mainOffset].join(" ")}>
+                <div data-dashboard-fullscreen={isDashboardFullscreen ? "true" : "false"} className={isDashboardFullscreen ? "h-dvh min-h-dvh w-full overflow-hidden bg-brand-surface/25 p-0 backdrop-blur-[1px] [&>main]:h-dvh [&>main]:min-h-dvh" : "min-h-[calc(100dvh-5rem)] w-full bg-brand-surface/25 p-0 backdrop-blur-[1px] [&>main]:min-h-[calc(100dvh-5rem)]"}>
                     {children}
                 </div>
             </main>

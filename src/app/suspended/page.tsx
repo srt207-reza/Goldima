@@ -74,7 +74,7 @@ function SuspendedContent() {
             <div className="relative">
                 <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-rose-300/25 bg-rose-400/10 px-4 py-2 text-sm font-bold text-rose-100">
                     <ShieldOff className="h-4 w-4" />
-                    حساب تعلیق شده
+                    حساب مسدود شده
                 </div>
 
                 <div className="mb-7 flex items-start gap-4">
@@ -83,7 +83,7 @@ function SuspendedContent() {
                     </div>
                     <div className="min-w-0">
                         <h1 className="text-3xl font-black leading-tight text-brand-text-primary sm:text-4xl">
-                            دسترسی حساب شما تعلیق شده است
+                            حساب شما مسدود شده است
                         </h1>
                         <p className="mt-3 text-sm leading-7 text-brand-text-secondary">
                             {businessName} در حال حاضر امکان ورود به پنل را ندارد.
@@ -92,14 +92,14 @@ function SuspendedContent() {
                 </div>
 
                 <div className="rounded-3xl border border-silver-dark/20 bg-brand-base/45 p-5 shadow-inner shadow-black/10">
-                    <p className="mb-3 text-xs font-bold text-brand-text-secondary">دلیل تعلیق</p>
+                    <p className="mb-3 text-xs font-bold text-brand-text-secondary">دلیل مسدود شدن</p>
                     <p className="whitespace-pre-wrap text-justify text-sm leading-8 text-brand-text-primary">
                         {reason}
                     </p>
                 </div>
 
                 <div className="mt-5 rounded-2xl border border-silver-light/10 bg-white/[0.03] p-4 text-sm leading-7 text-brand-text-secondary">
-                    برای پیگیری وضعیت حساب، با پشتیبانی Goldima تماس بگیرید. تا زمان رفع تعلیق، دسترسی به داشبورد و بخش‌های مدیریتی فعال نخواهد بود.
+                    برای پیگیری وضعیت حساب، با پشتیبانی Goldima تماس بگیرید. تا زمان رفع مسدودی، دسترسی به داشبورد و بخش‌های مدیریتی فعال نخواهد بود.
                 </div>
 
                 <button

@@ -108,16 +108,6 @@ textarea:not(:disabled) {
     }
 }
 
-@keyframes goldima-panel-sweep {
-    from {
-        transform: translateX(115%);
-    }
-
-    to {
-        transform: translateX(-115%);
-    }
-}
-
 @keyframes goldima-live-scan {
     0% {
         transform: translateY(-100%);
@@ -157,21 +147,6 @@ textarea:not(:disabled) {
     animation: goldima-row-reveal 520ms ease-out both;
 }
 
-.goldima-panel-sweep {
-    position: relative;
-    overflow: hidden;
-}
-
-.goldima-panel-sweep::after {
-    animation: goldima-panel-sweep 6.5s ease-in-out infinite;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
-    content: "";
-    inset: 0;
-    pointer-events: none;
-    position: absolute;
-    transform: translateX(115%);
-}
-
 .goldima-live-scan::before {
     animation: goldima-live-scan 7s linear infinite;
     background: linear-gradient(180deg, transparent, rgba(251, 191, 36, 0.16), transparent);
@@ -184,4 +159,84 @@ textarea:not(:disabled) {
 
 .goldima-price-glow {
     animation: goldima-price-glow 3.5s ease-in-out infinite;
+}
+
+.dashboard-board-shell,
+.dashboard-topbar,
+.dashboard-topbar-grid,
+.dashboard-clock-card,
+.dashboard-status-grid,
+.dashboard-price-content {
+    transition:
+        grid-template-columns 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        flex-direction 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        width 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        height 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        margin 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        padding 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 520ms cubic-bezier(0.22, 1, 0.36, 1),
+        opacity 360ms ease,
+        border-radius 520ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 1024px) {
+    [data-dashboard-fullscreen="true"] .dashboard-page {
+        height: 100dvh;
+        padding: 1rem;
+    }
+
+    [data-dashboard-fullscreen="true"] .dashboard-board-shell {
+        display: flex;
+        flex-direction: row;
+        gap: 1rem;
+        height: calc(100% - 4rem);
+        margin-top: 4rem;
+        max-width: none;
+        min-height: 0;
+    }
+
+    [data-dashboard-fullscreen="true"] .dashboard-topbar {
+        align-self: stretch;
+        flex: 0 0 18rem;
+        height: 100%;
+        margin-bottom: 0;
+        position: relative;
+        top: auto;
+        transform: translateX(0);
+    }
+
+    [data-dashboard-fullscreen="true"] .dashboard-topbar-grid {
+        align-content: start;
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        height: 100%;
+    }
+
+    [data-dashboard-fullscreen="true"] .dashboard-clock-card,
+    [data-dashboard-fullscreen="true"] .dashboard-status-grid {
+        width: 100%;
+    }
+
+    [data-dashboard-fullscreen="true"] .dashboard-status-grid {
+        grid-template-columns: 1fr;
+    }
+
+    [data-dashboard-fullscreen="true"] .dashboard-price-content {
+        flex: 1 1 auto;
+        min-height: 0;
+        min-width: 0;
+        overflow-y: auto;
+        padding-left: 0.25rem;
+        padding-top: 0;
+    }
+
+    [data-dashboard-fullscreen="true"] .dashboard-price-content > .grid {
+        gap: 1rem;
+        padding-top: 0;
+    }
+
+    [data-dashboard-fullscreen="true"] .dashboard-price-content .xl\:grid-cols-2 {
+        gap: 1rem;
+    }
 }

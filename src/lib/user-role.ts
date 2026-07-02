@@ -17,7 +17,7 @@ const normalizeText = (value: unknown): string => {
 const ROLE_ALIASES: Record<Exclude<NormalizedUserRole, "unknown">, string[]> = {
     reference: ["مرجع", "master", "MASTER", "reference", "referrer", "agent", "reseller"],
     wholesale: ["عمدهفروش", "عمده", "wholesale", "wholesaler", "bulk"],
-    retail: ["تکفروش", "تک", "retail", "retailer", "single"],
+    retail: ["خردهفروش", "خرده", "تکفروش", "تک", "retail", "retailer", "single"],
 };
 
 export function getNormalizedUserRole(user?: ApiUser | null): NormalizedUserRole {

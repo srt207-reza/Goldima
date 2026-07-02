@@ -1,7 +1,7 @@
 import type { AuthBusinessProfile } from "@/types/api/auth";
 
 export const DEFAULT_SUSPENDED_REASON =
-    "حساب کاربری شما تعلیق شده است. جهت بررسی علت و ادامه فعالیت با شماره پشتیبانی تماس بگیرید.";
+    "حساب کاربری شما مسدود شده است. جهت بررسی علت و ادامه فعالیت با شماره پشتیبانی تماس بگیرید.";
 
 type SuspendedUrlParams = {
     businessHandler?: string | null;

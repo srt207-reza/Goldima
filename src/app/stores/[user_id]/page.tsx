@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, type ChangeEvent, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
     ArrowLeft,
@@ -16,10 +16,10 @@ import {
     MapPin,
     Phone,
     Save,
+    Search,
     ShieldCheck,
     UserCheck,
     UserRound,
-    XCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Card } from "@/components/ui/card";
@@ -34,8 +34,9 @@ import {
     useUsersQuery,
     useUserQuery,
 } from "@/hooks/api";
-import { canViewUserManagement, getNormalizedUserRole, type NormalizedUserRole } from "@/lib/user-role";
+import { canViewUserManagement, getNormalizedUserRole } from "@/lib/user-role";
 import { toApiDate, toDisplayDate } from "@/lib/date-format";
+import { ACCOUNT_STATUS_OPTIONS, getAccountStatusLabel, getAccountStatusView, getStoreRoleLabel, USER_ROLE_LABELS } from "@/constants/user-taxonomy";
 import type { ManagedUser, UserRole, UserStatus } from "@/types/api/user";
 
 type DetailFormState = {
@@ -59,32 +60,7 @@ type DropdownOption<T extends string> = {
     caption?: string;
 };
 
-const ROLE_LABELS: Record<NormalizedUserRole, string> = {
-    reference: "مرجع",
-    wholesale: "عمده‌فروش",
-    retail: "تک‌فروش",
-    unknown: "نامشخص",
-};
-
-const STATUS_LABELS: Record<UserStatus, string> = {
-    PENDING: "در انتظار بررسی",
-    APPROVED: "تایید شده",
-    REJECTED: "رد شده",
-    SUSPENDED: "تعلیق شده",
-};
-
-const USER_ROLE_LABELS: Record<"MASTER" | "WHOLESALER" | "RETAIL", string> = {
-    MASTER: "مرجع",
-    WHOLESALER: "عمده‌فروش",
-    RETAIL: "تک‌فروش",
-};
-
-const STATUS_OPTIONS: DropdownOption<UserStatus>[] = [
-    { value: "PENDING", label: STATUS_LABELS.PENDING, caption: "حساب هنوز منتظر تایید است" },
-    { value: "APPROVED", label: STATUS_LABELS.APPROVED, caption: "دسترسی کاربر فعال می‌شود" },
-    { value: "REJECTED", label: STATUS_LABELS.REJECTED, caption: "درخواست کاربر رد می‌شود" },
-    { value: "SUSPENDED", label: STATUS_LABELS.SUSPENDED, caption: "دسترسی حساب کاربر مسدود می‌شود" },
-];
+const STATUS_OPTIONS: DropdownOption<UserStatus>[] = ACCOUNT_STATUS_OPTIONS;
 
 const ROLE_OPTIONS: DropdownOption<UserRole>[] = [
     { value: "RETAIL", label: USER_ROLE_LABELS.RETAIL, caption: "زیرمجموعه عمده‌فروش" },
@@ -102,7 +78,7 @@ function getInitialFormState(user: ManagedUser): DetailFormState {
         last_name: user.last_name ?? "",
         email: user.email ?? "",
         birth_date: toDisplayDate(user.birth_date),
-        status: user.status,
+        status: getAccountStatusView(user.status, user.is_active !== false && user.business_profile_is_active !== false),
         role: user.role,
         parent: user.parent ?? "",
         business_name: user.business_name ?? "",
@@ -138,16 +114,28 @@ function DetailDropdown<T extends string>({
     value,
     options,
     placeholder,
+    searchable = false,
+    searchPlaceholder = "جستجو...",
     onChange,
 }: {
     id: string;
     value: T;
     options: DropdownOption<T>[];
     placeholder: string;
+    searchable?: boolean;
+    searchPlaceholder?: string;
     onChange: (value: T) => void;
 }) {
     const [isOpen, setIsOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
     const selectedOption = options.find((option) => option.value === value);
+    const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+    const visibleOptions = normalizedSearchQuery
+        ? options.filter((option) => {
+            const haystack = `${option.label} ${option.caption ?? ""}`.toLowerCase();
+            return haystack.includes(normalizedSearchQuery);
+        })
+        : options;
 
     return (
         <div
@@ -155,6 +143,7 @@ function DetailDropdown<T extends string>({
             onBlur={(event) => {
                 if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
                     setIsOpen(false);
+                    setSearchQuery("");
                 }
             }}
         >
@@ -163,7 +152,15 @@ function DetailDropdown<T extends string>({
                 type="button"
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
-                onClick={() => setIsOpen((current) => !current)}
+                onClick={() => {
+                    setIsOpen((current) => {
+                        if (current) {
+                            setSearchQuery("");
+                        }
+
+                        return !current;
+                    });
+                }}
                 className={[
                     "group flex h-11 w-full items-center justify-between gap-3 rounded-xl border px-4 text-right text-sm font-bold outline-none transition-all duration-300",
                     "border-brand-border/80 bg-brand-base/50 text-brand-text-primary shadow-inner shadow-black/10",
@@ -181,11 +178,26 @@ function DetailDropdown<T extends string>({
                 <div
                     role="listbox"
                     aria-labelledby={id}
-                    className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] max-h-72 w-full overflow-hidden rounded-2xl border border-silver-light/20 bg-brand-surface/95 p-1.5 text-right shadow-2xl shadow-black/40 backdrop-blur-2xl"
+                    className="absolute right-0 top-[calc(100%+0.5rem)] z-[100] flex max-h-[min(22rem,calc(100dvh-8rem))] w-full flex-col overflow-hidden rounded-2xl border border-silver-light/20 bg-brand-surface/95 p-1.5 text-right shadow-2xl shadow-black/40 backdrop-blur-2xl"
                 >
                     <div className="pointer-events-none absolute inset-x-4 top-0 h-px bg-gradient-to-l from-transparent via-silver-light/70 to-transparent" />
-                    <div className="max-h-64 overflow-y-auto pr-1">
-                        {options.map((option) => {
+                    {searchable ? (
+                        <div className="relative mb-1.5 shrink-0">
+                            <Search className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-silver-light/70" />
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(event) => setSearchQuery(event.target.value)}
+                                placeholder={searchPlaceholder}
+                                className="h-10 w-full rounded-xl border border-white/10 bg-brand-base/55 pr-9 pl-3 text-right text-sm text-brand-text-primary outline-none transition placeholder:text-brand-text-secondary/70 focus:border-silver-light/45 focus:bg-brand-base/75"
+                            />
+                        </div>
+                    ) : null}
+                    <div
+                        className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:thin]"
+                        onWheel={(event) => event.stopPropagation()}
+                    >
+                        {visibleOptions.length ? visibleOptions.map((option) => {
                             const selected = option.value === value;
 
                             return (
@@ -197,6 +209,7 @@ function DetailDropdown<T extends string>({
                                     onClick={() => {
                                         onChange(option.value);
                                         setIsOpen(false);
+                                        setSearchQuery("");
                                     }}
                                     className={[
                                         "flex w-full items-center justify-between gap-3 rounded-xl px-3 py-3 text-right transition-all duration-200",
@@ -218,7 +231,11 @@ function DetailDropdown<T extends string>({
                                     </span>
                                 </button>
                             );
-                        })}
+                        }) : (
+                            <div className="px-3 py-5 text-center text-xs text-brand-text-secondary">
+                                نتیجه‌ای پیدا نشد.
+                            </div>
+                        )}
                     </div>
                 </div>
             ) : null}
@@ -268,22 +285,50 @@ function UserEditor({
     const isSaving = updateUserMutation.isPending || updateProfileMutation.isPending;
     const role = getNormalizedUserRole(user);
     const currentRole = getNormalizedUserRole(currentUser);
-    const canEditHierarchy = currentRole === "reference" && currentUser.is_employee !== true;
-    const wholesaleParentOptions = manageableUsers.filter(
-        (item) => String(item.id) !== String(user.id) && getNormalizedUserRole(item) === "wholesale" && item.status === "APPROVED"
+    const canEditHierarchy = (currentRole === "reference" || currentRole === "wholesale") && user.is_employee !== true;
+    const approvedParentCandidates = useMemo(() => {
+        const usersById = new Map<string, ManagedUser>();
+
+        [...manageableUsers, currentUser].forEach((item) => {
+            if (item.status !== "APPROVED") return;
+            if (item.is_employee) return;
+
+            usersById.set(String(item.id), item);
+        });
+
+        return [...usersById.values()]
+            .filter((item) => String(item.id) !== String(user.id))
+            .sort((a, b) => {
+                if (String(a.id) === String(currentUser.id)) return -1;
+                if (String(b.id) === String(currentUser.id)) return 1;
+
+                return getDisplayName(a).localeCompare(getDisplayName(b), "fa");
+            });
+    }, [currentUser, manageableUsers, user.id]);
+    const referenceParentOptions = useMemo(
+        () => approvedParentCandidates.filter((item) => getNormalizedUserRole(item) === "reference"),
+        [approvedParentCandidates]
+    );
+    const wholesaleParentOptions = useMemo(
+        () => approvedParentCandidates.filter((item) => getNormalizedUserRole(item) === "wholesale"),
+        [approvedParentCandidates]
     );
     const parentOptions =
         formData.role === "WHOLESALER"
-            ? [currentUser]
+            ? referenceParentOptions
             : formData.role === "RETAIL"
-                ? [currentUser, ...wholesaleParentOptions]
+                ? wholesaleParentOptions
                 : [];
     const parentDropdownOptions: DropdownOption<string>[] = [
-        { value: "", label: "بدون والد", caption: "برای نقش مرجع استفاده می‌شود" },
+        ...(formData.role === "MASTER"
+            ? [{ value: "", label: "بدون والد", caption: "برای نقش مرجع استفاده می‌شود" }]
+            : []),
         ...parentOptions.map((option) => ({
             value: String(option.id),
             label: getDisplayName(option),
-            caption: option.business_name || option.username || undefined,
+            caption: [
+                option.business_handler,
+            ].filter(Boolean).join(" · ").replaceAll('-'," ") || undefined,
         })),
     ];
 
@@ -296,7 +341,18 @@ function UserEditor({
         setFormData((prev) => ({
             ...prev,
             role: nextRole,
-            parent: nextRole === "MASTER" ? "" : nextRole === "WHOLESALER" ? String(currentUser.id) : prev.parent,
+            parent:
+                nextRole === "MASTER"
+                    ? ""
+                    : nextRole === "WHOLESALER"
+                        ? referenceParentOptions.some((option) => String(option.id) === prev.parent)
+                            ? prev.parent
+                            : String(referenceParentOptions[0]?.id ?? "")
+                        : nextRole === "RETAIL"
+                            ? wholesaleParentOptions.some((option) => String(option.id) === prev.parent)
+                                ? prev.parent
+                                : String(wholesaleParentOptions[0]?.id ?? "")
+                            : prev.parent,
         }));
     };
 
@@ -317,7 +373,7 @@ function UserEditor({
             });
             setFormData((prev) => ({ ...prev, status }));
             await refreshQueries();
-            toast.success(`وضعیت کاربر به ${STATUS_LABELS[status]} تغییر کرد`);
+            toast.success(`وضعیت کاربر به ${getAccountStatusLabel(status)} تغییر کرد`);
             return true;
         } catch (error) {
             const message = error instanceof Error ? error.message : "تغییر وضعیت کاربر با خطا مواجه شد";
@@ -395,7 +451,7 @@ function UserEditor({
                         <div className="mt-3 flex flex-wrap gap-2 text-sm text-brand-text-secondary">
                             <span className="inline-flex items-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 py-2">
                                 <UserRound className="h-4 w-4 text-silver-light" />
-                                {ROLE_LABELS[role]}
+                                {getStoreRoleLabel(role)}
                             </span>
                             {user.is_employee ? (
                                 <span className="inline-flex items-center gap-2 rounded-lg border border-emerald-300/25 bg-emerald-400/10 px-3 py-2 font-bold text-emerald-100">
@@ -405,7 +461,7 @@ function UserEditor({
                             ) : null}
                             <span className="inline-flex items-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 py-2">
                                 <ShieldCheck className="h-4 w-4 text-silver-light" />
-                                {STATUS_LABELS[user.status]}
+                                {getAccountStatusLabel(user.status, user.is_active !== false && user.business_profile_is_active !== false)}
                             </span>
                             <span className="inline-flex items-center gap-2 rounded-lg border border-silver-dark/25 bg-white/5 px-3 py-2">
                                 <ClipboardList className="h-4 w-4 text-silver-light" />
@@ -426,17 +482,6 @@ function UserEditor({
                                 تایید
                             </button>
                         ) : null}
-                        {user.status !== "REJECTED" ? (
-                            <button
-                                type="button"
-                                onClick={() => handleStatusChange("REJECTED")}
-                                disabled={isSaving}
-                                className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-rose-300/25 bg-rose-400/10 px-4 text-sm font-medium text-rose-100 transition hover:bg-rose-400/20 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                <XCircle className="h-4 w-4" />
-                                رد
-                            </button>
-                        ) : null}
                         {user.status !== "SUSPENDED" ? (
                             <button
                                 type="button"
@@ -445,7 +490,7 @@ function UserEditor({
                                 className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border border-slate-300/25 bg-slate-400/10 px-4 text-sm font-medium text-slate-100 transition hover:bg-slate-400/20 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 <Ban className="h-4 w-4" />
-                                تعلیق
+                                مسدود کردن
                             </button>
                         ) : null}
                         <Link href="/stores" className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-brand-text-secondary transition hover:text-brand-text-primary">
@@ -525,6 +570,12 @@ function UserEditor({
                                             value={formData.parent}
                                             options={parentDropdownOptions}
                                             placeholder="انتخاب والد"
+                                            searchable
+                                            searchPlaceholder={
+                                                formData.role === "WHOLESALER"
+                                                    ? "جستجوی مرجع..."
+                                                    : "جستجوی عمده‌فروش..."
+                                            }
                                             onChange={(parent) => setFormData((prev) => ({ ...prev, parent }))}
                                         />
                                     </div>
